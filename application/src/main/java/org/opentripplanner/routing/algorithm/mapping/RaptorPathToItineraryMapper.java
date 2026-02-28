@@ -28,6 +28,7 @@ import org.opentripplanner.raptor.api.path.RaptorPath;
 import org.opentripplanner.raptor.api.path.TransferPathLeg;
 import org.opentripplanner.raptor.api.path.TransitPathLeg;
 import org.opentripplanner.routing.algorithm.raptoradapter.transit.DefaultRaptorTransfer;
+import org.opentripplanner.routing.algorithm.raptoradapter.transit.DistanceOnlyAccessEgress;
 import org.opentripplanner.routing.algorithm.raptoradapter.transit.RaptorTransitData;
 import org.opentripplanner.routing.algorithm.raptoradapter.transit.RoutingAccessEgress;
 import org.opentripplanner.routing.algorithm.raptoradapter.transit.Transfer;
@@ -196,7 +197,7 @@ public class RaptorPathToItineraryMapper<T extends TripSchedule> {
       return List.of();
     }
 
-    var subItinerary = mapAccessEgressPathLeg(accessPathLeg.access());
+    var subItinerary = mapAccessEgressPathLeg(accessPathLeg.access(), true);
 
     if (subItinerary.legs().isEmpty()) {
       return List.of();
@@ -354,7 +355,7 @@ public class RaptorPathToItineraryMapper<T extends TripSchedule> {
       return null;
     }
 
-    var subItinerary = mapAccessEgressPathLeg(egressPathLeg.egress());
+    var subItinerary = mapAccessEgressPathLeg(egressPathLeg.egress(), false);
 
     if (subItinerary.legs().isEmpty()) {
       return null;
@@ -479,13 +480,51 @@ public class RaptorPathToItineraryMapper<T extends TripSchedule> {
     );
   }
 
-  private Itinerary mapAccessEgressPathLeg(RaptorAccessEgress accessEgress) {
-    return accessEgress
-      .findOriginal(RoutingAccessEgress.class)
-      .map(RoutingAccessEgress::getLastState)
-      .map(GraphPath::new)
-      .map(path -> graphPathToItineraryMapper.generateItinerary(path, request))
-      .orElseThrow();
+  private Itinerary mapAccessEgressPathLeg(RaptorAccessEgress accessEgress, boolean isAccess) {
+    var base = accessEgress.findOriginal(RoutingAccessEgress.class).orElseThrow();
+
+    if (base instanceof DistanceOnlyAccessEgress distanceOnly) {
+      return mapDistanceOnlyAccessEgressPathLeg(distanceOnly, isAccess);
+    }
+
+    return graphPathToItineraryMapper.generateItinerary(
+      new GraphPath<>(base.getLastState()),
+      request
+    );
+  }
+
+  private Itinerary mapDistanceOnlyAccessEgressPathLeg(
+    DistanceOnlyAccessEgress accessEgress,
+    boolean isAccess
+  ) {
+    var fromStop = raptorTransitData.getStopByIndex(
+      isAccess ? accessEgress.anchorStop() : accessEgress.stop()
+    );
+    var toStop = raptorTransitData.getStopByIndex(
+      isAccess ? accessEgress.stop() : accessEgress.anchorStop()
+    );
+
+    var startTime = transitSearchTimeZero;
+    var endTime = startTime.plusSeconds(accessEgress.durationInSeconds());
+
+    var leg = StreetLeg.of()
+      .withMode(TraverseMode.WALK)
+      .withStartTime(startTime)
+      .withEndTime(endTime)
+      .withFrom(Place.forStop(fromStop))
+      .withTo(Place.forStop(toStop))
+      .withDistanceMeters(accessEgress.distanceMeters())
+      .withGeneralizedCost(toOtpDomainCost(accessEgress.c1()))
+      .withGeometry(
+        GeometryUtils.makeLineString(
+          Place.forStop(fromStop).coordinate,
+          Place.forStop(toStop).coordinate
+        )
+      )
+      .withWalkSteps(List.of())
+      .build();
+
+    return Itinerary.ofScheduledTransit(List.of(leg)).build();
   }
 
   private TimeAndCost mapAccessEgressPenalty(RaptorAccessEgress accessEgress) {

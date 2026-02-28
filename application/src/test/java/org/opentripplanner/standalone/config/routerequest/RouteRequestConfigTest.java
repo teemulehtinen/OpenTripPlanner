@@ -99,6 +99,28 @@ class RouteRequestConfigTest {
     );
   }
 
+  @Test
+  void testDistanceOnlyStationTransfers() {
+    var nodeAdapter = newNodeAdapterForTest(
+      """
+      {
+        "accessEgress": {
+          "distanceOnlyStationTransfers": {
+            "enabled": true,
+            "maxDistance": 4200
+          }
+        }
+      }
+      """
+    );
+
+    var subject = RouteRequestConfig.mapRouteRequest(nodeAdapter);
+    var accessEgress = subject.preferences().street().accessEgress();
+
+    assertTrue(accessEgress.distanceOnlyStationTransfersEnabled());
+    assertEquals(4200, accessEgress.distanceOnlyStationTransfersMaxDistanceMeters());
+  }
+
   @ParameterizedTest
   @ValueSource(strings = { "99", "\"99s\"", "\"1m39s\"", "\"PT1m39s\"" })
   public void transferSlackAsIntOrDuration(String input) {

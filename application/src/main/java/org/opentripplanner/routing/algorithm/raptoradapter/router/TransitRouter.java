@@ -8,7 +8,10 @@ import java.time.Instant;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.stream.IntStream;
@@ -16,6 +19,7 @@ import javax.annotation.Nullable;
 import org.opentripplanner.core.model.id.FeedScopedId;
 import org.opentripplanner.ext.ridehailing.RideHailingAccessShifter;
 import org.opentripplanner.framework.application.OTPFeature;
+import org.opentripplanner.framework.model.TimeAndCost;
 import org.opentripplanner.graph_builder.module.nearbystops.TransitServiceResolver;
 import org.opentripplanner.model.plan.Itinerary;
 import org.opentripplanner.raptor.RaptorService;
@@ -28,6 +32,8 @@ import org.opentripplanner.routing.algorithm.raptoradapter.router.street.AccessE
 import org.opentripplanner.routing.algorithm.raptoradapter.router.street.AccessEgressType;
 import org.opentripplanner.routing.algorithm.raptoradapter.router.street.AccessEgresses;
 import org.opentripplanner.routing.algorithm.raptoradapter.router.street.FlexAccessEgressRouter;
+import org.opentripplanner.routing.algorithm.raptoradapter.transit.DefaultRaptorTransfer;
+import org.opentripplanner.routing.algorithm.raptoradapter.transit.DistanceOnlyAccessEgress;
 import org.opentripplanner.routing.algorithm.raptoradapter.transit.RaptorTransitData;
 import org.opentripplanner.routing.algorithm.raptoradapter.transit.RoutingAccessEgress;
 import org.opentripplanner.routing.algorithm.raptoradapter.transit.TripSchedule;
@@ -48,8 +54,10 @@ import org.opentripplanner.routing.linking.LinkingContext;
 import org.opentripplanner.routing.via.ViaCoordinateTransferFactory;
 import org.opentripplanner.standalone.api.OtpServerRequestContext;
 import org.opentripplanner.street.model.StreetMode;
+import org.opentripplanner.street.model.vertex.TransitStopVertex;
 import org.opentripplanner.transit.model.framework.EntityNotFoundException;
 import org.opentripplanner.transit.model.network.grouppriority.TransitGroupPriorityService;
+import org.opentripplanner.transit.model.site.RegularStop;
 import org.opentripplanner.transit.model.site.StopLocation;
 
 public class TransitRouter {
@@ -129,7 +137,7 @@ public class TransitRouter {
 
     debugTimingAggregator.finishedPatternFiltering();
 
-    var accessEgresses = fetchAccessEgresses();
+    var accessEgresses = fetchAccessEgresses(requestTransitDataProvider);
 
     debugTimingAggregator.finishedAccessEgress(
       accessEgresses.getAccesses().size(),
@@ -220,7 +228,9 @@ public class TransitRouter {
     return new TransitRouterResult(itineraries, transitResponse.requestUsed().searchParams());
   }
 
-  private AccessEgresses fetchAccessEgresses() {
+  private AccessEgresses fetchAccessEgresses(
+    RaptorRoutingRequestTransitData requestTransitDataProvider
+  ) {
     final var accessList = new ArrayList<RoutingAccessEgress>();
     final var egressList = new ArrayList<RoutingAccessEgress>();
 
@@ -229,15 +239,19 @@ public class TransitRouter {
         // TODO: This is not using {@link OtpRequestThreadFactory} which mean we do not get
         //       log-trace-parameters-propagation and graceful timeout handling here.
         CompletableFuture.allOf(
-          CompletableFuture.runAsync(() -> accessList.addAll(fetchAccess())),
-          CompletableFuture.runAsync(() -> egressList.addAll(fetchEgress()))
+          CompletableFuture.runAsync(() ->
+            accessList.addAll(fetchAccess(requestTransitDataProvider))
+          ),
+          CompletableFuture.runAsync(() ->
+            egressList.addAll(fetchEgress(requestTransitDataProvider))
+          )
         ).join();
       } catch (CompletionException e) {
         RoutingValidationException.unwrapAndRethrowCompletionException(e);
       }
     } else {
-      accessList.addAll(fetchAccess());
-      egressList.addAll(fetchEgress());
+      accessList.addAll(fetchAccess(requestTransitDataProvider));
+      egressList.addAll(fetchEgress(requestTransitDataProvider));
     }
 
     verifyAccessEgress(accessList, egressList);
@@ -255,21 +269,28 @@ public class TransitRouter {
     return new AccessEgresses(accessListWithPenalty, egressListWithPenalty);
   }
 
-  private Collection<? extends RoutingAccessEgress> fetchAccess() {
+  private Collection<? extends RoutingAccessEgress> fetchAccess(
+    RaptorRoutingRequestTransitData requestTransitDataProvider
+  ) {
     debugTimingAggregator.startedAccessCalculating();
-    var list = fetchAccessEgresses(ACCESS);
+    var list = fetchAccessEgresses(ACCESS, requestTransitDataProvider);
     debugTimingAggregator.finishedAccessCalculating();
     return list;
   }
 
-  private Collection<? extends RoutingAccessEgress> fetchEgress() {
+  private Collection<? extends RoutingAccessEgress> fetchEgress(
+    RaptorRoutingRequestTransitData requestTransitDataProvider
+  ) {
     debugTimingAggregator.startedEgressCalculating();
-    var list = fetchAccessEgresses(EGRESS);
+    var list = fetchAccessEgresses(EGRESS, requestTransitDataProvider);
     debugTimingAggregator.finishedEgressCalculating();
     return list;
   }
 
-  private Collection<? extends RoutingAccessEgress> fetchAccessEgresses(AccessEgressType type) {
+  private Collection<? extends RoutingAccessEgress> fetchAccessEgresses(
+    AccessEgressType type,
+    RaptorRoutingRequestTransitData requestTransitDataProvider
+  ) {
     var streetRequest = type.isAccess() ? request.journey().access() : request.journey().egress();
     StreetMode mode = streetRequest.mode();
 
@@ -303,6 +324,12 @@ public class TransitRouter {
     );
     var accessEgresses = AccessEgressMapper.mapNearbyStops(nearbyStops, type);
     accessEgresses = timeshiftRideHailing(streetRequest, type, accessEgresses);
+    accessEgresses = addDistanceOnlyStationTransfers(
+      accessEgresses,
+      type,
+      requestTransitDataProvider,
+      accessEgressPreferences.maxStopCountLimit().limitForMode(mode)
+    );
 
     var results = new ArrayList<>(accessEgresses);
 
@@ -323,6 +350,109 @@ public class TransitRouter {
     }
 
     return results;
+  }
+
+  private List<RoutingAccessEgress> addDistanceOnlyStationTransfers(
+    List<RoutingAccessEgress> initial,
+    AccessEgressType type,
+    RaptorRoutingRequestTransitData requestTransitDataProvider,
+    int maxStopCount
+  ) {
+    var config = request.preferences().street().accessEgress();
+
+    if (!config.distanceOnlyStationTransfersEnabled()) {
+      return initial;
+    }
+
+    if (
+      (type.isAccess() && linkingContext.fromStopVertices().isEmpty()) ||
+      (type.isEgress() && linkingContext.toStopVertices().isEmpty())
+    ) {
+      return initial;
+    }
+
+    int maxDistanceMeters = config.distanceOnlyStationTransfersMaxDistanceMeters();
+
+    var bestByStop = new HashMap<Integer, RoutingAccessEgress>();
+    initial.forEach(it -> bestByStop.merge(it.stop(), it, this::pickBestAccessEgress));
+
+    var anchorStopVertices = type.isAccess()
+      ? linkingContext.fromStopVertices()
+      : linkingContext.toStopVertices();
+
+    for (var anchorStop : resolveRegularStops(anchorStopVertices)) {
+      int anchorStopIndex = anchorStop.getIndex();
+
+      bestByStop.putIfAbsent(
+        anchorStopIndex,
+        new DistanceOnlyAccessEgress(anchorStopIndex, anchorStopIndex, 0, 0, 0, TimeAndCost.ZERO)
+      );
+
+      var transfers = type.isAccess()
+        ? requestTransitDataProvider.getTransfersFromStop(anchorStopIndex)
+        : requestTransitDataProvider.getTransfersToStop(anchorStopIndex);
+
+      while (transfers.hasNext()) {
+        toDistanceOnlyAccessEgress(transfers.next(), anchorStopIndex, maxDistanceMeters).ifPresent(
+          candidate -> bestByStop.merge(candidate.stop(), candidate, this::pickBestAccessEgress)
+        );
+      }
+    }
+
+    return bestByStop
+      .values()
+      .stream()
+      .sorted(Comparator.comparingInt(RoutingAccessEgress::c1))
+      .limit(maxStopCount)
+      .toList();
+  }
+
+  private java.util.Optional<DistanceOnlyAccessEgress> toDistanceOnlyAccessEgress(
+    Object transfer,
+    int anchorStopIndex,
+    int maxDistanceMeters
+  ) {
+    if (!(transfer instanceof DefaultRaptorTransfer tx)) {
+      return java.util.Optional.empty();
+    }
+
+    int distanceMeters = tx.transfer().getDistanceMeters();
+    if (distanceMeters > maxDistanceMeters) {
+      return java.util.Optional.empty();
+    }
+
+    return java.util.Optional.of(
+      new DistanceOnlyAccessEgress(
+        tx.stop(),
+        anchorStopIndex,
+        tx.durationInSeconds(),
+        tx.c1(),
+        distanceMeters,
+        TimeAndCost.ZERO
+      )
+    );
+  }
+
+  private RoutingAccessEgress pickBestAccessEgress(
+    RoutingAccessEgress left,
+    RoutingAccessEgress right
+  ) {
+    if (left.c1() != right.c1()) {
+      return left.c1() < right.c1() ? left : right;
+    }
+    if (left.durationInSeconds() != right.durationInSeconds()) {
+      return left.durationInSeconds() < right.durationInSeconds() ? left : right;
+    }
+    return left;
+  }
+
+  private List<RegularStop> resolveRegularStops(Collection<TransitStopVertex> stopVertices) {
+    return stopVertices
+      .stream()
+      .map(TransitStopVertex::getId)
+      .map(serverContext.transitService()::getRegularStop)
+      .filter(Objects::nonNull)
+      .toList();
   }
 
   /**

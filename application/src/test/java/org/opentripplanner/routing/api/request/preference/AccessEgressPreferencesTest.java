@@ -2,6 +2,7 @@ package org.opentripplanner.routing.api.request.preference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.opentripplanner.routing.api.request.preference.ImmutablePreferencesAsserts.assertEqualsAndHashCode;
 
 import java.time.Duration;
@@ -16,6 +17,7 @@ public class AccessEgressPreferencesTest {
   private static final Duration MAX_ACCESS_EGRESS = Duration.ofMinutes(5);
   private static final int MAX_DEFAULT_STOP_COUNT = 245;
   private static final int MAX_CAR_STOP_COUNT = 0;
+  private static final int MAX_DISTANCE_METERS = 2_500;
   private static final TimeAndCostPenalty CAR_TO_PARK_PENALTY = TimeAndCostPenalty.of(
     TimePenalty.of("2m + 1.5t"),
     3.5
@@ -25,6 +27,7 @@ public class AccessEgressPreferencesTest {
     .withPenalty(Map.of(StreetMode.CAR_TO_PARK, CAR_TO_PARK_PENALTY))
     .withMaxDuration(MAX_ACCESS_EGRESS, Map.of())
     .withMaxStopCount(MAX_DEFAULT_STOP_COUNT, Map.of(StreetMode.CAR, MAX_CAR_STOP_COUNT))
+    .withDistanceOnlyStationTransfers(true, MAX_DISTANCE_METERS)
     .build();
 
   @Test
@@ -36,6 +39,12 @@ public class AccessEgressPreferencesTest {
   @Test
   void maxAccessEgressDuration() {
     assertEquals(MAX_ACCESS_EGRESS, subject.maxDuration().defaultValue());
+  }
+
+  @Test
+  void distanceOnlyStationTransfers() {
+    assertTrue(subject.distanceOnlyStationTransfersEnabled());
+    assertEquals(MAX_DISTANCE_METERS, subject.distanceOnlyStationTransfersMaxDistanceMeters());
   }
 
   @Test
@@ -70,7 +79,9 @@ public class AccessEgressPreferencesTest {
         "CAR_HAILING: (timePenalty: 20m + 2.0 t, costFactor: 1.50), " +
         "FLEXIBLE: (timePenalty: 10m + 1.30 t, costFactor: 1.30)}, " +
         "maxDuration: DurationForStreetMode{default:5m}, " +
-        "maxStopCount: MaxStopCountLimit{defaultLimit: 245, limitsForModes: {CAR=0}}" +
+        "maxStopCount: MaxStopCountLimit{defaultLimit: 245, limitsForModes: {CAR=0}}, " +
+        "distanceOnlyStationTransfersEnabled: true, " +
+        "distanceOnlyStationTransfersMaxDistanceMeters: 2,500" +
         "}",
       subject.toString()
     );

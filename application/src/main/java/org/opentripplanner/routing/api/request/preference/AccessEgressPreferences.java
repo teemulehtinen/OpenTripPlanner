@@ -29,17 +29,24 @@ public final class AccessEgressPreferences implements Serializable {
   private final TimeAndCostPenaltyForEnum<StreetMode> penalty;
   private final DurationForEnum<StreetMode> maxDuration;
   private final MaxStopCountLimit maxStopCountLimit;
+  private final boolean distanceOnlyStationTransfersEnabled;
+  private final int distanceOnlyStationTransfersMaxDistanceMeters;
 
   private AccessEgressPreferences() {
     this.maxDuration = durationForStreetModeOf(ofMinutes(45));
     this.penalty = DEFAULT_TIME_AND_COST;
     this.maxStopCountLimit = new MaxStopCountLimit();
+    this.distanceOnlyStationTransfersEnabled = false;
+    this.distanceOnlyStationTransfersMaxDistanceMeters = 5_000;
   }
 
   private AccessEgressPreferences(Builder builder) {
     this.maxDuration = builder.maxDuration;
     this.penalty = builder.penalty;
     this.maxStopCountLimit = builder.maxStopCountLimit;
+    this.distanceOnlyStationTransfersEnabled = builder.distanceOnlyStationTransfersEnabled;
+    this.distanceOnlyStationTransfersMaxDistanceMeters =
+      builder.distanceOnlyStationTransfersMaxDistanceMeters;
   }
 
   public static Builder of() {
@@ -62,6 +69,14 @@ public final class AccessEgressPreferences implements Serializable {
     return maxStopCountLimit;
   }
 
+  public boolean distanceOnlyStationTransfersEnabled() {
+    return distanceOnlyStationTransfersEnabled;
+  }
+
+  public int distanceOnlyStationTransfersMaxDistanceMeters() {
+    return distanceOnlyStationTransfersMaxDistanceMeters;
+  }
+
   @Override
   public boolean equals(Object o) {
     if (this == o) {
@@ -74,13 +89,22 @@ public final class AccessEgressPreferences implements Serializable {
     return (
       penalty.equals(that.penalty) &&
       maxDuration.equals(that.maxDuration) &&
-      maxStopCountLimit.equals(that.maxStopCountLimit)
+      maxStopCountLimit.equals(that.maxStopCountLimit) &&
+      distanceOnlyStationTransfersEnabled == that.distanceOnlyStationTransfersEnabled &&
+      distanceOnlyStationTransfersMaxDistanceMeters ==
+      that.distanceOnlyStationTransfersMaxDistanceMeters
     );
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(penalty, maxDuration, maxStopCountLimit);
+    return Objects.hash(
+      penalty,
+      maxDuration,
+      maxStopCountLimit,
+      distanceOnlyStationTransfersEnabled,
+      distanceOnlyStationTransfersMaxDistanceMeters
+    );
   }
 
   @Override
@@ -89,6 +113,16 @@ public final class AccessEgressPreferences implements Serializable {
       .addObj("penalty", penalty, DEFAULT.penalty)
       .addObj("maxDuration", maxDuration, DEFAULT.maxDuration)
       .addObj("maxStopCount", maxStopCountLimit, DEFAULT.maxStopCountLimit)
+      .addBool(
+        "distanceOnlyStationTransfersEnabled",
+        distanceOnlyStationTransfersEnabled,
+        DEFAULT.distanceOnlyStationTransfersEnabled
+      )
+      .addNum(
+        "distanceOnlyStationTransfersMaxDistanceMeters",
+        distanceOnlyStationTransfersMaxDistanceMeters,
+        DEFAULT.distanceOnlyStationTransfersMaxDistanceMeters
+      )
       .toString();
   }
 
@@ -98,12 +132,17 @@ public final class AccessEgressPreferences implements Serializable {
     private TimeAndCostPenaltyForEnum<StreetMode> penalty;
     private DurationForEnum<StreetMode> maxDuration;
     private MaxStopCountLimit maxStopCountLimit;
+    private boolean distanceOnlyStationTransfersEnabled;
+    private int distanceOnlyStationTransfersMaxDistanceMeters;
 
     public Builder(AccessEgressPreferences original) {
       this.original = original;
       this.maxDuration = original.maxDuration;
       this.penalty = original.penalty;
       this.maxStopCountLimit = original.maxStopCountLimit;
+      this.distanceOnlyStationTransfersEnabled = original.distanceOnlyStationTransfersEnabled;
+      this.distanceOnlyStationTransfersMaxDistanceMeters =
+        original.distanceOnlyStationTransfersMaxDistanceMeters;
     }
 
     public Builder withMaxDuration(Consumer<DurationForEnum.Builder<StreetMode>> body) {
@@ -138,6 +177,12 @@ public final class AccessEgressPreferences implements Serializable {
     /** Utility method to simplify config parsing */
     public Builder withPenalty(Map<StreetMode, TimeAndCostPenalty> values) {
       return withPenalty(b -> b.withValues(values));
+    }
+
+    public Builder withDistanceOnlyStationTransfers(boolean enabled, int maxDistanceMeters) {
+      this.distanceOnlyStationTransfersEnabled = enabled;
+      this.distanceOnlyStationTransfersMaxDistanceMeters = maxDistanceMeters;
+      return this;
     }
 
     public AccessEgressPreferences original() {

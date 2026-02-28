@@ -406,6 +406,13 @@ public class RouteRequestConfig {
       .since(V2_4)
       .summary("Parameters for access and egress routing.")
       .asObject();
+    NodeAdapter cDistanceOnlyStationTransfers = cae
+      .of("distanceOnlyStationTransfers")
+      .since(V2_9)
+      .summary(
+        "Enable distance-only access/egress candidates from direct station-to-station transfers."
+      )
+      .asObject();
 
     builder
       .withTurnReluctance(
@@ -547,6 +554,18 @@ public class RouteRequestConfig {
                 """
               )
               .asEnumMap(StreetMode.class, Integer.class)
+          )
+          .withDistanceOnlyStationTransfers(
+            cDistanceOnlyStationTransfers
+              .of("enabled")
+              .since(V2_9)
+              .summary("Enable distance-only station transfer candidates for access/egress.")
+              .asBoolean(dftAccessEgress.distanceOnlyStationTransfersEnabled()),
+            cDistanceOnlyStationTransfers
+              .of("maxDistance")
+              .since(V2_9)
+              .summary("Maximum transfer distance for distance-only station transfer candidates.")
+              .asInt(dftAccessEgress.distanceOnlyStationTransfersMaxDistanceMeters())
           );
       })
       .withMaxDirectDuration(
