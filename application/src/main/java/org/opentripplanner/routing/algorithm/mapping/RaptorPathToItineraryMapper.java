@@ -524,7 +524,9 @@ public class RaptorPathToItineraryMapper<T extends TripSchedule> {
       .withWalkSteps(List.of())
       .build();
 
-    return Itinerary.ofScheduledTransit(List.of(leg)).build();
+    return Itinerary.ofScheduledTransit(List.of(leg))
+      .withGeneralizedCost(Cost.costOfCentiSeconds(accessEgress.c1()))
+      .build();
   }
 
   private TimeAndCost mapAccessEgressPenalty(RaptorAccessEgress accessEgress) {
