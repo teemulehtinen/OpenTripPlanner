@@ -9,7 +9,9 @@ import org.opentripplanner.api.model.transit.FeedScopedIdMapper;
 import org.opentripplanner.apis.transmodel.mapping.TripRequestMapper;
 import org.opentripplanner.apis.transmodel.mapping.ViaRequestMapper;
 import org.opentripplanner.apis.transmodel.model.PlanResponse;
+import org.opentripplanner.model.GenericLocation;
 import org.opentripplanner.routing.algorithm.mapping.TripPlanMapper;
+import org.opentripplanner.routing.api.request.RouteRequest;
 import org.opentripplanner.routing.api.request.RouteRequestBuilder;
 import org.opentripplanner.routing.api.response.RoutingResponse;
 import org.opentripplanner.routing.api.response.ViaRoutingResponse;
@@ -36,6 +38,16 @@ public class TransmodelGraphQLPlanner {
     RouteRequestBuilder requestBuilder = tripRequestMapper.createRequestBuilder(environment);
     try {
       var request = requestBuilder.buildRequest();
+      if (!ctx.getServerContext().graph().hasStreets) {
+        requestBuilder.withPreferences(pref ->
+          pref.withStreet(street ->
+            street.withAccessEgress(ae -> ae.withDistanceOnlyStationTransfers(true, 10000))
+          )
+        );
+        requestBuilder.withFrom(findClosestStop(ctx, request, request.from()));
+        requestBuilder.withTo(findClosestStop(ctx, request, request.to()));
+        request = requestBuilder.buildRequest();
+      }
       RoutingResponse res = ctx.getRoutingService().route(request);
       response = PlanResponse.of()
         .withPlan(res.getTripPlan())
@@ -57,6 +69,26 @@ public class TransmodelGraphQLPlanner {
       .data(response)
       .localContext(Map.of("locale", locale))
       .build();
+  }
+
+  private static GenericLocation findClosestStop(
+    TransmodelRequestContext ctx,
+    RouteRequest request,
+    GenericLocation location
+  ) {
+    if (location.stopId != null || location.getCoordinate() == null) {
+      return location;
+    }
+    var maxDistance = 30000;
+    var closestStop = ctx
+      .getServerContext()
+      .graphFinder()
+      .findClosestStops(location.getCoordinate(), maxDistance)
+      .stream()
+      .findFirst();
+    return closestStop
+      .map(stop -> GenericLocation.fromStopId(stop.stop.getStationOrStopId()))
+      .orElse(location);
   }
 
   public DataFetcherResult<ViaRoutingResponse> planVia(DataFetchingEnvironment environment) {
