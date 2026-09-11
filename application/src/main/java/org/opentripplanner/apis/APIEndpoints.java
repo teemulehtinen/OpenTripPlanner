@@ -6,6 +6,7 @@ import static org.opentripplanner.framework.application.OTPFeature.ActuatorAPI;
 import static org.opentripplanner.framework.application.OTPFeature.DebugRasterTiles;
 import static org.opentripplanner.framework.application.OTPFeature.DebugUi;
 import static org.opentripplanner.framework.application.OTPFeature.GtfsGraphQlApi;
+import static org.opentripplanner.framework.application.OTPFeature.McpApi;
 import static org.opentripplanner.framework.application.OTPFeature.OjpApi;
 import static org.opentripplanner.framework.application.OTPFeature.ReportApi;
 import static org.opentripplanner.framework.application.OTPFeature.SandboxAPIGeocoder;
@@ -21,6 +22,7 @@ import java.util.List;
 import org.opentripplanner.api.resource.ServerInfoResource;
 import org.opentripplanner.api.resource.UpdaterStatusResource;
 import org.opentripplanner.apis.gtfs.GtfsGraphQLAPI;
+import org.opentripplanner.apis.mcp.McpResource;
 import org.opentripplanner.apis.transmodel.TransmodelAPI;
 import org.opentripplanner.apis.vectortiles.DebugVectorTilesResource;
 import org.opentripplanner.ext.actuator.ActuatorAPI;
@@ -52,6 +54,7 @@ public class APIEndpoints {
     addIfEnabled(TransmodelGraphQlApi, TransmodelAPI.class);
     // scheduled to be removed and only here for backwards compatibility
     addIfEnabled(TransmodelGraphQlApi, TransmodelAPI.TransmodelAPIOldPath.class);
+    addIfEnabled(McpApi, McpResource.class);
 
     // Sandbox extension APIs
     addIfEnabled(ActuatorAPI, ActuatorAPI.class);

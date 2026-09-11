@@ -158,6 +158,7 @@ public enum OTPFeature {
     "Include train Sørlandsbanen in results when searching in south of Norway. Only relevant in Norway."
   ),
   TransferAnalyzer(false, true, "Analyze transfers during graph build."),
+  McpApi(false, true, "Enable the Model Context Protocol API."),
   TriasApi(false, true, "TRIAS API.");
 
   private static final Object TEST_LOCK = new Object();
