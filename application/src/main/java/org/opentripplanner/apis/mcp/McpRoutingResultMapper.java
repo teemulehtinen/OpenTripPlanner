@@ -1,8 +1,10 @@
 package org.opentripplanner.apis.mcp;
 
 import java.util.List;
+import org.opentripplanner.api.model.geometry.EncodedPolyline;
 import org.opentripplanner.model.plan.Itinerary;
 import org.opentripplanner.model.plan.Leg;
+import org.opentripplanner.model.plan.TransitLeg;
 import org.opentripplanner.routing.api.response.RoutingError;
 import org.opentripplanner.routing.api.response.RoutingResponse;
 
@@ -40,18 +42,37 @@ public final class McpRoutingResultMapper {
   private static McpRoutingResult.McpLeg mapLeg(Leg leg) {
     var from = leg.from();
     var to = leg.to();
-    var fromStopId = from.stop == null ? null : from.stop.getId().toString();
-    var toStopId = to.stop == null ? null : to.stop.getId().toString();
     var route = leg.route();
+    var agency = leg.agency();
+    var coordinate = from.coordinate;
+    var fromPlace = new McpRoutingResult.McpPlace(
+      from.stop == null ? null : from.stop.getId().toString(),
+      from.name == null ? null : from.name.toString(),
+      coordinate == null ? null : coordinate.latitude(),
+      coordinate == null ? null : coordinate.longitude(),
+      from.stop == null ? null : from.stop.getPlatformCode()
+    );
+    coordinate = to.coordinate;
+    var toPlace = new McpRoutingResult.McpPlace(
+      to.stop == null ? null : to.stop.getId().toString(),
+      to.name == null ? null : to.name.toString(),
+      coordinate == null ? null : coordinate.latitude(),
+      coordinate == null ? null : coordinate.longitude(),
+      to.stop == null ? null : to.stop.getPlatformCode()
+    );
+    var geometry = leg.legGeometry();
     return new McpRoutingResult.McpLeg(
       leg.isTransitLeg(),
+      leg instanceof TransitLeg transitLeg ? transitLeg.mode().name() : "WALK",
       leg.startTime().toInstant(),
       leg.endTime().toInstant(),
       leg.duration().toSeconds(),
-      fromStopId,
-      toStopId,
+      fromPlace,
+      toPlace,
       route == null ? null : route.getId().toString(),
-      route == null ? null : route.getName().toString()
+      route == null ? null : route.getName().toString(),
+      agency == null ? null : agency.getName(),
+      geometry == null ? null : EncodedPolyline.of(geometry).points()
     );
   }
 

@@ -28,13 +28,24 @@ public record McpRoutingResult(
 
   public record McpLeg(
     boolean transit,
+    String mode,
     Instant departure,
     Instant arrival,
     long durationSeconds,
-    String fromStopId,
-    String toStopId,
+    McpPlace from,
+    McpPlace to,
     String routeId,
-    String routeName
+    String routeName,
+    String agencyName,
+    String geometry
+  ) {}
+
+  public record McpPlace(
+    String stopId,
+    String name,
+    Double latitude,
+    Double longitude,
+    String platformCode
   ) {}
 
   public record McpRoutingError(String code, String inputField) {}
