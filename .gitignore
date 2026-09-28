@@ -52,3 +52,5 @@ graph.obj
 
 # EPSG files
 application/v??.?.??
+
+.vscode/

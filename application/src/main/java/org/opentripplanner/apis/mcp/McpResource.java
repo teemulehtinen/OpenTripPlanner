@@ -3,20 +3,20 @@ package org.opentripplanner.apis.mcp;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DELETE;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.HeaderParam;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
-import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
-import java.time.Duration;
-import java.time.Instant;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -125,8 +125,9 @@ public final class McpResource {
     try {
       Object result = switch (name) {
         case ROUTE_TOOL -> routingService.route(parseRouteRequest(typedArguments));
-        case NEAREST_STOP_TOOL -> routingService.findNearestStops(
-          parseNearestStopRequest(typedArguments)
+        case NEAREST_STOP_TOOL -> Map.of(
+          "stops",
+          routingService.findNearestStops(parseNearestStopRequest(typedArguments))
         );
         default -> throw new IllegalStateException("Unknown tool: " + name);
       };
@@ -161,7 +162,10 @@ public final class McpResource {
       var host = uri.getHost();
       return (
         ("http".equals(uri.getScheme()) || "https".equals(uri.getScheme())) &&
-        ("localhost".equalsIgnoreCase(host) || "127.0.0.1".equals(host) || "[::1]".equals(host) || "::1".equals(host)) &&
+        ("localhost".equalsIgnoreCase(host) ||
+          "127.0.0.1".equals(host) ||
+          "[::1]".equals(host) ||
+          "::1".equals(host)) &&
         uri.getPath().isEmpty() &&
         uri.getQuery() == null &&
         uri.getFragment() == null
@@ -176,8 +180,10 @@ public final class McpResource {
       return false;
     }
     var normalized = accept.toLowerCase(Locale.ROOT);
-    return normalized.contains(MediaType.APPLICATION_JSON) &&
-      normalized.contains(MediaType.SERVER_SENT_EVENTS);
+    return (
+      normalized.contains(MediaType.APPLICATION_JSON) &&
+      normalized.contains(MediaType.SERVER_SENT_EVENTS)
+    );
   }
 
   private McpNearestStopRequest parseNearestStopRequest(Map<String, Object> arguments) {
@@ -259,7 +265,14 @@ public final class McpResource {
           List.of("latitude", "longitude", "radiusMeters", "maxResults")
         ),
         "outputSchema",
-        Map.of("type", "array")
+        Map.of(
+          "type",
+          "object",
+          "properties",
+          Map.of("stops", Map.of("type", "array", "items", Map.of("type", "object"))),
+          "required",
+          List.of("stops")
+        )
       )
     );
   }

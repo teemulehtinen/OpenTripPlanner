@@ -30,7 +30,11 @@ class McpRequestTest {
 
     assertEquals(
       List.of("feed:via1", "feed:via2"),
-      request.intermediateStops().stream().map(stopId -> stopId.toString()).toList()
+      request
+        .intermediateStops()
+        .stream()
+        .map(stopId -> stopId.toString())
+        .toList()
     );
     assertEquals(McpTimeDirection.ARRIVE_BY, request.timeDirection());
   }
@@ -41,9 +45,8 @@ class McpRequestTest {
       .mapToObj(index -> FeedScopedId.parse("feed:via" + index))
       .toList();
 
-    assertThrows(
-      IllegalArgumentException.class,
-      () -> new McpRouteRequest(
+    assertThrows(IllegalArgumentException.class, () ->
+      new McpRouteRequest(
         ORIGIN,
         DESTINATION,
         stops,
@@ -59,13 +62,11 @@ class McpRequestTest {
   @Test
   void coordinateAndNearestStopLimitsAreValidated() {
     assertThrows(IllegalArgumentException.class, () -> new McpCoordinate(91, 0));
-    assertThrows(
-      IllegalArgumentException.class,
-      () -> new McpNearestStopRequest(new McpCoordinate(0, 0), 0, 1)
+    assertThrows(IllegalArgumentException.class, () ->
+      new McpNearestStopRequest(new McpCoordinate(0, 0), 0, 1)
     );
-    assertThrows(
-      IllegalArgumentException.class,
-      () -> new McpNearestStopRequest(new McpCoordinate(0, 0), 100, 21)
+    assertThrows(IllegalArgumentException.class, () ->
+      new McpNearestStopRequest(new McpCoordinate(0, 0), 100, 21)
     );
   }
 }

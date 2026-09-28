@@ -37,7 +37,11 @@ class McpResourceTest {
     assertEquals("agency:B", request.destination().toString());
     assertEquals(
       List.of("agency:C", "agency:D"),
-      request.intermediateStops().stream().map(stopId -> stopId.toString()).toList()
+      request
+        .intermediateStops()
+        .stream()
+        .map(stopId -> stopId.toString())
+        .toList()
     );
     assertEquals(Instant.parse("2026-09-10T08:15:00Z"), request.time());
     assertEquals(McpTimeDirection.DEPART_AT, request.timeDirection());
