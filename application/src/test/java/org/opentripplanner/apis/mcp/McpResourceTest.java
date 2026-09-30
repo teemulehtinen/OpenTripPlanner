@@ -1,10 +1,10 @@
 package org.opentripplanner.apis.mcp;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -52,38 +52,61 @@ class McpResourceTest {
   }
 
   @Test
+  void parseRouteRequestUsesDefaultsForOptionalArguments() {
+    var beforeParsing = Instant.now();
+    var request = McpResource.parseRouteRequest(
+      Map.of("origin", "agency:A", "destination", "agency:B")
+    );
+    var afterParsing = Instant.now();
+
+    assertEquals(McpTimeDirection.DEPART_AT, request.timeDirection());
+    assertFalse(request.time().isBefore(beforeParsing));
+    assertFalse(request.time().isAfter(afterParsing));
+    assertEquals(Duration.ofHours(24), request.searchWindow());
+    assertEquals(10, request.maxItineraries());
+  }
+
+  @Test
   void routingResultSerializesMapAndDisplayFields() throws Exception {
     var place = new McpRoutingResult.McpPlace("feed:stop", "Central", 60.17, 24.94, "5");
+    var departure = "2026-09-10T08:15:00Z";
+    var arrival = "2026-09-10T09:00:00Z";
     var leg = new McpRoutingResult.McpLeg(
       true,
       "RAIL",
-      Instant.parse("2026-09-10T08:15:00Z"),
-      Instant.parse("2026-09-10T09:00:00Z"),
+      departure,
+      arrival,
       2700,
       place,
       place,
       "feed:route",
       "Regional train",
       "Transit Agency",
-      "encoded-polyline"
+      "a82a8794-15d6-4f2a-b9b2-6db4337e88f7"
     );
     var itinerary = new McpRoutingResult.McpItinerary(
-      leg.departure(),
-      leg.arrival(),
+      departure,
+      arrival,
       leg.durationSeconds(),
       0,
       List.of(leg)
     );
     var result = new McpRoutingResult(List.of(itinerary), List.of(), false);
-    var json = new ObjectMapper()
-      .registerModule(new JavaTimeModule())
-      .readTree(new ObjectMapper().registerModule(new JavaTimeModule()).writeValueAsString(result));
+    var json = new ObjectMapper().readTree(new ObjectMapper().writeValueAsString(result));
+
+    var nearestStop = new McpNearestStop("1:fi357373", "Central", 60.17, 24.94, 12.5);
+    var nearestStopJson = new ObjectMapper().valueToTree(nearestStop);
 
     var serializedLeg = json.path("itineraries").get(0).path("legs").get(0);
+    assertEquals("1:fi357373", nearestStopJson.path("id").asText());
+    assertEquals(false, nearestStopJson.path("id").isObject());
     assertEquals("RAIL", serializedLeg.path("mode").asText());
     assertEquals("Transit Agency", serializedLeg.path("agencyName").asText());
-    assertEquals("encoded-polyline", serializedLeg.path("geometry").asText());
+    assertEquals("a82a8794-15d6-4f2a-b9b2-6db4337e88f7", serializedLeg.path("geometryId").asText());
+    assertFalse(serializedLeg.has("geometry"));
     assertEquals("Central", serializedLeg.path("from").path("name").asText());
     assertEquals("5", serializedLeg.path("from").path("platformCode").asText());
+    assertEquals(departure, serializedLeg.path("departure").asText());
+    assertEquals(arrival, serializedLeg.path("arrival").asText());
   }
 }

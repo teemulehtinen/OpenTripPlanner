@@ -31,8 +31,8 @@ public final class McpRoutingResultMapper {
 
   private static McpRoutingResult.McpItinerary mapItinerary(Itinerary itinerary) {
     return new McpRoutingResult.McpItinerary(
-      itinerary.startTimeAsInstant(),
-      itinerary.endTimeAsInstant(),
+      itinerary.startTimeAsInstant().toString(),
+      itinerary.endTimeAsInstant().toString(),
       itinerary.totalDuration().toSeconds(),
       itinerary.numberOfTransfers(),
       itinerary.legs().stream().map(McpRoutingResultMapper::mapLeg).toList()
@@ -64,15 +64,15 @@ public final class McpRoutingResultMapper {
     return new McpRoutingResult.McpLeg(
       leg.isTransitLeg(),
       leg instanceof TransitLeg transitLeg ? transitLeg.mode().name() : "WALK",
-      leg.startTime().toInstant(),
-      leg.endTime().toInstant(),
+      leg.startTime().toInstant().toString(),
+      leg.endTime().toInstant().toString(),
       leg.duration().toSeconds(),
       fromPlace,
       toPlace,
       route == null ? null : route.getId().toString(),
       route == null ? null : route.getName().toString(),
       agency == null ? null : agency.getName(),
-      geometry == null ? null : EncodedPolyline.of(geometry).points()
+      geometry == null ? null : McpGeometryStore.store(EncodedPolyline.of(geometry).points())
     );
   }
 

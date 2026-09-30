@@ -27,7 +27,7 @@ public final class McpNearestStopService {
   private static McpNearestStop map(NearbyStop nearbyStop) {
     var stop = nearbyStop.stop;
     return new McpNearestStop(
-      stop.getId(),
+      stop.getId().toString(),
       Objects.toString(stop.getName(), ""),
       stop.getLat(),
       stop.getLon(),

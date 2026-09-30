@@ -1,6 +1,5 @@
 package org.opentripplanner.apis.mcp;
 
-import java.time.Instant;
 import java.util.List;
 
 /** Stable, transport-independent output for the MCP route tool. */
@@ -15,8 +14,8 @@ public record McpRoutingResult(
   }
 
   public record McpItinerary(
-    Instant departure,
-    Instant arrival,
+    String departure,
+    String arrival,
     long durationSeconds,
     int transfers,
     List<McpLeg> legs
@@ -29,15 +28,15 @@ public record McpRoutingResult(
   public record McpLeg(
     boolean transit,
     String mode,
-    Instant departure,
-    Instant arrival,
+    String departure,
+    String arrival,
     long durationSeconds,
     McpPlace from,
     McpPlace to,
     String routeId,
     String routeName,
     String agencyName,
-    String geometry
+    String geometryId
   ) {}
 
   public record McpPlace(

@@ -20,6 +20,8 @@ public record McpRouteRequest(
   public static final int MAX_INTERMEDIATE_STOPS = 10;
   public static final int MAX_ITINERARIES = 10;
   public static final Duration MAX_SEARCH_WINDOW = Duration.ofHours(24);
+  public static final Duration DEFAULT_SEARCH_WINDOW = MAX_SEARCH_WINDOW;
+  public static final int DEFAULT_MAX_ITINERARIES = MAX_ITINERARIES;
 
   public McpRouteRequest {
     if (origin == null || destination == null) {
@@ -35,8 +37,14 @@ public record McpRouteRequest(
         "At most %d intermediate stops are supported.".formatted(MAX_INTERMEDIATE_STOPS)
       );
     }
-    if (timeDirection == null || time == null) {
-      throw new IllegalArgumentException("Time direction and time are required.");
+    if (timeDirection == null) {
+      timeDirection = McpTimeDirection.DEPART_AT;
+    }
+    if (time == null) {
+      time = Instant.now();
+    }
+    if (searchWindow == null) {
+      searchWindow = DEFAULT_SEARCH_WINDOW;
     }
     if (
       searchWindow == null ||

@@ -229,14 +229,7 @@ public final class McpResource {
             Map.of("type", "string")
           ),
           "required",
-          List.of(
-            "origin",
-            "destination",
-            "time",
-            "timeDirection",
-            "searchWindowSeconds",
-            "maxItineraries"
-          )
+          List.of("origin", "destination")
         ),
         "outputSchema",
         Map.of("type", "object")
@@ -317,10 +310,14 @@ public final class McpResource {
       parseStopId(arguments, "origin"),
       parseStopId(arguments, "destination"),
       parseStopIds(arguments.get("intermediateStops")),
-      parseEnum(arguments, "timeDirection", McpTimeDirection.class),
-      parseInstant(arguments, "time"),
+      arguments.get("timeDirection") == null
+        ? McpTimeDirection.DEPART_AT
+        : parseEnum(arguments, "timeDirection", McpTimeDirection.class),
+      arguments.get("time") == null ? Instant.now() : parseInstant(arguments, "time"),
       parseSearchWindow(arguments.get("searchWindowSeconds")),
-      parseInteger(arguments, "maxItineraries"),
+      arguments.get("maxItineraries") == null
+        ? McpRouteRequest.DEFAULT_MAX_ITINERARIES
+        : parseInteger(arguments, "maxItineraries"),
       parseLocale(arguments.get("locale"))
     );
   }
@@ -399,6 +396,9 @@ public final class McpResource {
   }
 
   private static Duration parseSearchWindow(Object value) {
+    if (value == null) {
+      return McpRouteRequest.DEFAULT_SEARCH_WINDOW;
+    }
     if (!(value instanceof Number seconds)) {
       throw new IllegalArgumentException("'searchWindowSeconds' must be a number.");
     }
