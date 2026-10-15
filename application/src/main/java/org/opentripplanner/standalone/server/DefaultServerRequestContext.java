@@ -2,6 +2,7 @@ package org.opentripplanner.standalone.server;
 
 import graphql.schema.GraphQLSchema;
 import io.micrometer.core.instrument.MeterRegistry;
+import java.io.File;
 import java.util.List;
 import javax.annotation.Nullable;
 import org.opentripplanner.apis.gtfs.GtfsApiParameters;
@@ -9,6 +10,7 @@ import org.opentripplanner.apis.gtfs.configure.GtfsSchema;
 import org.opentripplanner.apis.transmodel.TransmodelAPIParameters;
 import org.opentripplanner.apis.transmodel.configure.TransmodelSchema;
 import org.opentripplanner.astar.spi.TraverseVisitor;
+import org.opentripplanner.datastore.api.OtpBaseDirectory;
 import org.opentripplanner.ext.carpooling.CarpoolingService;
 import org.opentripplanner.ext.dataoverlay.configuration.DataOverlayParameterBindings;
 import org.opentripplanner.ext.empiricaldelay.EmpiricalDelayService;
@@ -52,6 +54,7 @@ public class DefaultServerRequestContext implements OtpServerRequestContext {
   // Keep sort order: Main services, optional services and writable/none final fields
   //                  All 3 sections is sorted alphabetically.
 
+  private final File baseDirectory;
   private final DebugUiConfig debugUiConfig;
   private final FareService fareService;
   private final FlexParameters flexParameters;
@@ -126,6 +129,7 @@ public class DefaultServerRequestContext implements OtpServerRequestContext {
    */
   public DefaultServerRequestContext(
     // Keep the same order as in the field declaration
+    @OtpBaseDirectory File baseDirectory,
     DebugUiConfig debugUiConfig,
     FareService fareService,
     FlexParameters flexParameters,
@@ -162,6 +166,7 @@ public class DefaultServerRequestContext implements OtpServerRequestContext {
     @Nullable TraverseVisitor traverseVisitor,
     TransmodelAPIParameters transmodelAPIParameters
   ) {
+    this.baseDirectory = baseDirectory;
     this.debugUiConfig = debugUiConfig;
     this.flexParameters = flexParameters;
     this.fareService = fareService;
@@ -199,6 +204,11 @@ public class DefaultServerRequestContext implements OtpServerRequestContext {
     this.stopConsolidationService = stopConsolidationService;
     this.traverseVisitor = traverseVisitor;
     this.transmodelAPIParameters = transmodelAPIParameters;
+  }
+
+  @Override
+  public File baseDirectory() {
+    return baseDirectory;
   }
 
   @Override

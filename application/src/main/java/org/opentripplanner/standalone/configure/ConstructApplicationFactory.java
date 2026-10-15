@@ -4,12 +4,14 @@ import dagger.BindsInstance;
 import dagger.Component;
 import graphql.schema.GraphQLSchema;
 import jakarta.inject.Singleton;
+import java.io.File;
 import javax.annotation.Nullable;
 import org.opentripplanner.apis.gtfs.configure.GtfsSchema;
 import org.opentripplanner.apis.gtfs.configure.SchemaModule;
 import org.opentripplanner.apis.transmodel.configure.TransmodelSchema;
 import org.opentripplanner.apis.transmodel.configure.TransmodelSchemaModule;
 import org.opentripplanner.core.framework.deduplicator.DeduplicatorService;
+import org.opentripplanner.datastore.api.OtpBaseDirectory;
 import org.opentripplanner.ext.carpooling.CarpoolingRepository;
 import org.opentripplanner.ext.carpooling.CarpoolingService;
 import org.opentripplanner.ext.carpooling.configure.CarpoolingModule;
@@ -172,6 +174,9 @@ public interface ConstructApplicationFactory {
 
   @Component.Builder
   interface Builder {
+    @BindsInstance
+    Builder otpBaseDirectory(@OtpBaseDirectory File baseDirectory);
+
     @BindsInstance
     Builder configModel(ConfigModel config);
 

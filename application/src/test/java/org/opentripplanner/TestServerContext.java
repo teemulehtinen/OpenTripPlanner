@@ -118,6 +118,7 @@ public class TestServerContext {
     var vertexLinker = createVertexLinker(graph);
 
     return new DefaultServerRequestContext(
+      new java.io.File("."),
       DebugUiConfig.DEFAULT,
       fareService,
       routerConfig.flexParameters(),

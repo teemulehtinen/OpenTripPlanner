@@ -1,5 +1,6 @@
 package org.opentripplanner.apis.mcp;
 
+import java.util.ArrayList;
 import java.util.List;
 import org.opentripplanner.core.model.id.FeedScopedId;
 import org.opentripplanner.model.GenericLocation;
@@ -16,14 +17,21 @@ public final class McpRouteRequestMapper {
   /** Create an OTP request while preserving the router's configured defaults. */
   public static RouteRequest map(McpRouteRequest input, OtpServerRequestContext serverContext) {
     var request = serverContext.defaultRouteRequest().copyOf();
+    var locations = new ArrayList<McpStopLocation>();
+    locations.add(input.origin());
+    locations.add(input.destination());
+    locations.addAll(input.intermediateStops());
+    var stopIndex = locations.stream().anyMatch(McpRouteRequestMapper::requiresStopIndex)
+      ? McpStopIndex.load(serverContext.baseDirectory())
+      : McpStopIndex.empty();
     request
-      .withFrom(toGenericLocation(input.origin()))
-      .withTo(toGenericLocation(input.destination()))
+      .withFrom(toGenericLocation(stopIndex.resolve(input.origin())))
+      .withTo(toGenericLocation(stopIndex.resolve(input.destination())))
       .withDateTime(input.time())
       .withArriveBy(input.timeDirection() == McpTimeDirection.ARRIVE_BY)
       .withSearchWindow(input.searchWindow())
       .withNumItineraries(input.maxItineraries())
-      .withViaLocations(toViaLocations(input.intermediateStops()));
+      .withViaLocations(toViaLocations(input.intermediateStops(), stopIndex));
     request.withPreferences(preferences -> {
       preferences.withLocale(input.locale());
       preferences.withStreet(street ->
@@ -35,13 +43,24 @@ public final class McpRouteRequestMapper {
     return request.buildRequest();
   }
 
+  private static boolean requiresStopIndex(McpStopLocation location) {
+    return (
+      location instanceof McpStopLocation.Coordinate ||
+      !McpStopIndex.isStopIdReference(((McpStopLocation.IdOrName) location).value())
+    );
+  }
+
   private static GenericLocation toGenericLocation(FeedScopedId stopId) {
     return GenericLocation.fromStopId(stopId);
   }
 
-  private static List<ViaLocation> toViaLocations(List<FeedScopedId> stopIds) {
-    return stopIds
+  private static List<ViaLocation> toViaLocations(
+    List<McpStopLocation> stops,
+    McpStopIndex stopIndex
+  ) {
+    return stops
       .stream()
+      .map(stopIndex::resolve)
       .<ViaLocation>map(McpRouteRequestMapper::toPassThroughViaLocation)
       .toList();
   }

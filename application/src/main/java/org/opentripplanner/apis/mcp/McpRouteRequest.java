@@ -4,13 +4,12 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
-import org.opentripplanner.core.model.id.FeedScopedId;
 
 /** Transport-independent input for the first MCP routing tool. */
 public record McpRouteRequest(
-  FeedScopedId origin,
-  FeedScopedId destination,
-  List<FeedScopedId> intermediateStops,
+  McpStopLocation origin,
+  McpStopLocation destination,
+  List<McpStopLocation> intermediateStops,
   McpTimeDirection timeDirection,
   Instant time,
   Duration searchWindow,
@@ -25,7 +24,7 @@ public record McpRouteRequest(
 
   public McpRouteRequest {
     if (origin == null || destination == null) {
-      throw new IllegalArgumentException("Origin and destination stop IDs are required.");
+      throw new IllegalArgumentException("Origin and destination stops are required.");
     }
     if (intermediateStops == null) {
       intermediateStops = List.of();

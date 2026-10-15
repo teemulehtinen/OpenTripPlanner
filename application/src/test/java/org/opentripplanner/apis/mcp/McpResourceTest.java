@@ -2,6 +2,7 @@ package org.opentripplanner.apis.mcp;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -18,11 +19,11 @@ class McpResourceTest {
     var request = McpResource.parseRouteRequest(
       Map.of(
         "origin",
-        "agency:A",
+        "@agency:A",
         "destination",
-        "agency:B",
+        "@agency:B",
         "intermediateStops",
-        List.of("agency:C", "agency:D"),
+        List.of("@agency:C", "@agency:D"),
         "time",
         "2026-09-10T08:15:00Z",
         "timeDirection",
@@ -35,14 +36,14 @@ class McpResourceTest {
     );
 
     assertNotNull(request);
-    assertEquals("agency:A", request.origin().toString());
-    assertEquals("agency:B", request.destination().toString());
+    assertEquals("@agency:A", ((McpStopLocation.IdOrName) request.origin()).value());
+    assertEquals("@agency:B", ((McpStopLocation.IdOrName) request.destination()).value());
     assertEquals(
-      List.of("agency:C", "agency:D"),
+      List.of("@agency:C", "@agency:D"),
       request
         .intermediateStops()
         .stream()
-        .map(stopId -> stopId.toString())
+        .map(stop -> ((McpStopLocation.IdOrName) stop).value())
         .toList()
     );
     assertEquals(Instant.parse("2026-09-10T08:15:00Z"), request.time());
@@ -55,7 +56,7 @@ class McpResourceTest {
   void parseRouteRequestUsesDefaultsForOptionalArguments() {
     var beforeParsing = Instant.now();
     var request = McpResource.parseRouteRequest(
-      Map.of("origin", "agency:A", "destination", "agency:B")
+      Map.of("origin", "@agency:A", "destination", "@agency:B")
     );
     var afterParsing = Instant.now();
 
@@ -64,6 +65,36 @@ class McpResourceTest {
     assertFalse(request.time().isAfter(afterParsing));
     assertEquals(Duration.ofHours(24), request.searchWindow());
     assertEquals(10, request.maxItineraries());
+  }
+
+  @Test
+  void parseRouteRequestAcceptsStopNamesAndCoordinateObjects() {
+    var request = McpResource.parseRouteRequest(
+      Map.of(
+        "origin",
+        "Central Station",
+        "destination",
+        Map.of("latitude", 60.17, "longitude", 24.94),
+        "intermediateStops",
+        List.of("Harbor", Map.of("latitude", 60.16, "longitude", 24.95))
+      )
+    );
+
+    assertEquals("Central Station", ((McpStopLocation.IdOrName) request.origin()).value());
+    var destination = assertInstanceOf(McpStopLocation.Coordinate.class, request.destination());
+    assertEquals(new McpCoordinate(60.17, 24.94), destination.value());
+    assertInstanceOf(McpStopLocation.IdOrName.class, request.intermediateStops().get(0));
+    assertInstanceOf(McpStopLocation.Coordinate.class, request.intermediateStops().get(1));
+  }
+
+  @Test
+  void parseRouteRequestKeepsExplicitStopIdPrefix() {
+    var request = McpResource.parseRouteRequest(
+      Map.of("origin", "@agency:A", "destination", "Central Station")
+    );
+
+    assertEquals("@agency:A", ((McpStopLocation.IdOrName) request.origin()).value());
+    assertEquals("Central Station", ((McpStopLocation.IdOrName) request.destination()).value());
   }
 
   @Test

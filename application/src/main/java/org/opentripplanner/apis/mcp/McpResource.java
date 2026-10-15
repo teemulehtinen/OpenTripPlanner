@@ -13,6 +13,7 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import java.io.File;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.time.Duration;
@@ -21,7 +22,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import org.opentripplanner.core.model.id.FeedScopedId;
 import org.opentripplanner.standalone.api.OtpServerRequestContext;
 
 /** Minimal MCP JSON-RPC endpoint for the initial routing tools. */
@@ -35,10 +35,12 @@ public final class McpResource {
   private static final String NEAREST_STOP_TOOL = "find_nearest_stop";
 
   private final McpRoutingService routingService;
+  private final File baseDirectory;
   private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
 
   public McpResource(@Context OtpServerRequestContext serverContext) {
     this.routingService = new McpRoutingService(serverContext);
+    this.baseDirectory = serverContext.baseDirectory();
   }
 
   @POST
@@ -82,13 +84,15 @@ public final class McpResource {
             "protocolVersion",
             "2025-06-18",
             "capabilities",
-            Map.of("tools", Map.of()),
+            Map.of("tools", Map.of(), "resources", Map.of("listChanged", false)),
             "serverInfo",
             Map.of("name", "opentripplanner", "version", "2.x")
           )
         );
         case "tools/list" -> jsonRpcResult(id, Map.of("tools", toolDefinitions()));
         case "tools/call" -> callTool(id, request.get("params"));
+        case "resources/list" -> jsonRpcResult(id, listResources());
+        case "resources/read" -> jsonRpcResult(id, readResource(request.get("params")));
         default -> jsonRpcError(id, -32601, "Method not found: " + method);
       };
     } catch (IllegalArgumentException e) {
@@ -198,13 +202,45 @@ public final class McpResource {
     );
   }
 
+  private Map<String, Object> listResources() {
+    var resources = McpStopIndex.findResource(baseDirectory)
+      .map(path ->
+        List.of(
+          Map.<String, Object>of(
+            "uri",
+            McpStopIndex.RESOURCE_URI,
+            "name",
+            "Transit stop index",
+            "description",
+            "Compact root-stop index as [name, id, lat, lon] tuples.",
+            "mimeType",
+            MediaType.APPLICATION_JSON
+          )
+        )
+      )
+      .orElseGet(List::of);
+    return Map.of("resources", resources);
+  }
+
+  private Map<String, Object> readResource(Object rawParams) {
+    if (!(rawParams instanceof Map<?, ?> params)) {
+      throw new IllegalArgumentException("Resource parameters are required.");
+    }
+    var uri = requireString(params, "uri");
+    var text = McpStopIndex.readResource(baseDirectory, uri);
+    return Map.of(
+      "contents",
+      List.of(Map.of("uri", uri, "mimeType", MediaType.APPLICATION_JSON, "text", text))
+    );
+  }
+
   private static List<Map<String, Object>> toolDefinitions() {
     return List.of(
       Map.of(
         "name",
         ROUTE_TOOL,
         "description",
-        "Route between transit stop IDs with optional ordered pass-through stops.",
+        "Route between transit stops. Prefix feed-scoped stop IDs with '@'; plain strings are name searches in stops.json, and objects are coordinates.",
         "inputSchema",
         Map.of(
           "type",
@@ -212,11 +248,11 @@ public final class McpResource {
           "properties",
           Map.of(
             "origin",
-            Map.of("type", "string", "description", "Feed-scoped stop ID."),
+            stopLocationSchema(),
             "destination",
-            Map.of("type", "string", "description", "Feed-scoped stop ID."),
+            stopLocationSchema(),
             "intermediateStops",
-            Map.of("type", "array", "items", Map.of("type", "string")),
+            Map.of("type", "array", "items", stopLocationSchema()),
             "time",
             Map.of("type", "string", "format", "date-time"),
             "timeDirection",
@@ -270,6 +306,35 @@ public final class McpResource {
     );
   }
 
+  private static Map<String, Object> stopLocationSchema() {
+    return Map.of(
+      "oneOf",
+      List.of(
+        Map.of(
+          "type",
+          "string",
+          "description",
+          "Feed-scoped stop ID or exact stop name from the stops.json resource."
+        ),
+        Map.of(
+          "type",
+          "object",
+          "properties",
+          Map.of(
+            "latitude",
+            Map.of("type", "number", "minimum", -90, "maximum", 90),
+            "longitude",
+            Map.of("type", "number", "minimum", -180, "maximum", 180)
+          ),
+          "required",
+          List.of("latitude", "longitude"),
+          "additionalProperties",
+          false
+        )
+      )
+    );
+  }
+
   private static boolean isSupportedProtocolVersion(String protocolVersion) {
     return (
       protocolVersion == null ||
@@ -307,8 +372,8 @@ public final class McpResource {
 
   static McpRouteRequest parseRouteRequest(Map<String, Object> arguments) {
     return new McpRouteRequest(
-      parseStopId(arguments, "origin"),
-      parseStopId(arguments, "destination"),
+      parseStopLocation(arguments.get("origin"), "origin"),
+      parseStopLocation(arguments.get("destination"), "destination"),
       parseStopIds(arguments.get("intermediateStops")),
       arguments.get("timeDirection") == null
         ? McpTimeDirection.DEPART_AT
@@ -322,20 +387,18 @@ public final class McpResource {
     );
   }
 
-  private static FeedScopedId parseStopId(Map<String, Object> arguments, String name) {
-    var value = arguments.get(name);
-    if (!(value instanceof String stopId)) {
-      throw new IllegalArgumentException("'%s' must be a feed-scoped stop ID.".formatted(name));
+  private static McpStopLocation parseStopLocation(Object value, String name) {
+    if (value instanceof String stopId && !stopId.isBlank()) {
+      return new McpStopLocation.IdOrName(stopId);
     }
-    try {
-      var parsed = FeedScopedId.parse(stopId);
-      if (parsed == null) {
-        throw new IllegalArgumentException("'%s' must be a feed-scoped stop ID.".formatted(name));
-      }
-      return parsed;
-    } catch (IllegalArgumentException e) {
-      throw new IllegalArgumentException("Invalid '%s' stop ID: %s".formatted(name, stopId), e);
+    if (value instanceof Map<?, ?> coordinate) {
+      return new McpStopLocation.Coordinate(
+        new McpCoordinate(parseDouble(coordinate, "latitude"), parseDouble(coordinate, "longitude"))
+      );
     }
+    throw new IllegalArgumentException(
+      "'%s' must be a stop ID, stop name, or coordinate object.".formatted(name)
+    );
   }
 
   private static String requireString(Map<?, ?> values, String name) {
@@ -346,7 +409,7 @@ public final class McpResource {
     return string;
   }
 
-  private static double parseDouble(Map<String, Object> arguments, String name) {
+  private static double parseDouble(Map<?, ?> arguments, String name) {
     var value = arguments.get(name);
     if (!(value instanceof Number number)) {
       throw new IllegalArgumentException("'%s' must be a number.".formatted(name));
@@ -358,25 +421,16 @@ public final class McpResource {
     return valueAsDouble;
   }
 
-  private static List<FeedScopedId> parseStopIds(Object value) {
+  private static List<McpStopLocation> parseStopIds(Object value) {
     if (value == null) {
       return List.of();
     }
     if (!(value instanceof List<?> values)) {
-      throw new IllegalArgumentException("'intermediateStops' must be a list of stop IDs.");
+      throw new IllegalArgumentException("'intermediateStops' must be a list of stop locations.");
     }
     return values
       .stream()
-      .map(value1 -> {
-        if (!(value1 instanceof String stopId)) {
-          throw new IllegalArgumentException("Every intermediate stop must be a stop ID.");
-        }
-        var parsed = FeedScopedId.parse(stopId);
-        if (parsed == null) {
-          throw new IllegalArgumentException("Every intermediate stop must be a stop ID.");
-        }
-        return parsed;
-      })
+      .map(value1 -> parseStopLocation(value1, "intermediateStops entry"))
       .toList();
   }
 

@@ -128,6 +128,7 @@ public class SpeedTest {
     var vertexLinker = VertexLinkerTestFactory.of(graph);
 
     this.serverContext = new DefaultServerRequestContext(
+      new java.io.File("."),
       DebugUiConfig.DEFAULT,
       new DefaultFareService(),
       routerConfig.flexParameters(),

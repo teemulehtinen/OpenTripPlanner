@@ -12,23 +12,30 @@ feature before using the endpoint:
 ```
 
 The endpoint is `/otp/mcp` when OTP is running with its default server base path.
-The initial implementation exposes two read-only tools:
+The initial implementation exposes two read-only tools and a stop-index resource:
 
 - `find_nearest_stop` finds transit stops near a latitude/longitude using a bounded straight-line
   radius. This works when the graph has no street network.
-- `route` plans transit journeys between feed-scoped stop IDs. It accepts ordered intermediate stop
-  IDs as pass-through points.
+- `route` plans transit journeys between feed-scoped stop IDs, stop names, or coordinates. It accepts
+  ordered intermediate stops of those same types as pass-through points.
+- `resources/list` advertises `otp://stops.json` when `stops.json` is present in OTP's base directory,
+  and `resources/read` returns the compact root-stop index.
 
-A coordinate is not accepted as a route origin, destination, or intermediate point. Use
-`find_nearest_stop` first, then pass the selected stop ID to `route`. This is intentional: routing
-between stop IDs is supported on graphs without streets, while coordinate linking and coordinate
-visit-via routing require street-network support.
+The stop index is a JSON array of `[name, id, lat, lon]` tuples. Route stop fields accept either a
+feed-scoped stop ID prefixed with `@`, a name search, or a coordinate object containing `latitude`
+and `longitude`. Name searches are normalized to ASCII lowercase. For names with at least four
+normalized characters, OTP considers stops with the same first four characters and selects the one
+with the smallest Levenshtein distance between the remaining suffixes. Names shorter than four
+characters must match exactly after normalization. If there is no matching prefix (or no exact
+short-name match), the request returns no stop match. Coordinates resolve to the closest indexed
+stop within 10,000 meters. Explicit stop IDs can still be routed when the index resource is
+unavailable; name searches and coordinates require the resource.
 
 The route tool requires:
 
-- `origin`: feed-scoped stop ID, for example `agency:stop-a`
-- `destination`: feed-scoped stop ID
-- `intermediateStops`: optional ordered list of feed-scoped stop IDs
+- `origin`: `@`-prefixed feed-scoped stop ID, name search, or coordinate object
+- `destination`: `@`-prefixed feed-scoped stop ID, name search, or coordinate object
+- `intermediateStops`: optional ordered list of `@`-prefixed stop IDs, names, or coordinate objects
 - `time`: ISO-8601 timestamp
 - `timeDirection`: `DEPART_AT` or `ARRIVE_BY`
 - `searchWindowSeconds`: bounded search window

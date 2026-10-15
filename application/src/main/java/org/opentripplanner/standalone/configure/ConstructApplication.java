@@ -108,6 +108,7 @@ public class ConstructApplication {
 
     ConstructApplicationFactory.Builder builder = DaggerConstructApplicationFactory.builder();
     this.factory = builder
+      .otpBaseDirectory(cli.getBaseDirectory())
       .configModel(config)
       .graph(graph)
       .streetDetailsRepository(streetDetailsRepository)

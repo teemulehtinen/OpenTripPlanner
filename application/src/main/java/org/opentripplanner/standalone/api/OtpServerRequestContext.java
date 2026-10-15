@@ -2,6 +2,7 @@ package org.opentripplanner.standalone.api;
 
 import graphql.schema.GraphQLSchema;
 import io.micrometer.core.instrument.MeterRegistry;
+import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 import javax.annotation.Nullable;
@@ -76,6 +77,8 @@ import org.opentripplanner.transit.service.TransitService;
  */
 @HttpRequestScoped
 public interface OtpServerRequestContext {
+  File baseDirectory();
+
   DebugUiConfig debugUiConfig();
 
   /**
