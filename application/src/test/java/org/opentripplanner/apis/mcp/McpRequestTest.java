@@ -29,7 +29,8 @@ class McpRequestTest {
       Instant.parse("2026-09-11T10:00:00Z"),
       Duration.ofMinutes(20),
       3,
-      Locale.ENGLISH
+      Locale.ENGLISH,
+      true
     );
 
     assertEquals(
@@ -41,6 +42,7 @@ class McpRequestTest {
         .toList()
     );
     assertEquals(McpTimeDirection.ARRIVE_BY, request.timeDirection());
+    assertEquals(true, request.includeShapeData());
   }
 
   @Test
@@ -58,7 +60,8 @@ class McpRequestTest {
         Instant.now(),
         Duration.ZERO,
         1,
-        Locale.ENGLISH
+        Locale.ENGLISH,
+        false
       )
     );
   }

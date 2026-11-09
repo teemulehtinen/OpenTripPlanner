@@ -31,7 +31,9 @@ class McpResourceTest {
         "searchWindowSeconds",
         1800,
         "maxItineraries",
-        3
+        3,
+        "includeShapeData",
+        true
       )
     );
 
@@ -50,6 +52,7 @@ class McpResourceTest {
     assertEquals(McpTimeDirection.DEPART_AT, request.timeDirection());
     assertEquals(Duration.ofMinutes(30), request.searchWindow());
     assertEquals(3, request.maxItineraries());
+    assertEquals(true, request.includeShapeData());
   }
 
   @Test
@@ -65,6 +68,16 @@ class McpResourceTest {
     assertFalse(request.time().isAfter(afterParsing));
     assertEquals(Duration.ofHours(24), request.searchWindow());
     assertEquals(10, request.maxItineraries());
+    assertEquals(false, request.includeShapeData());
+  }
+
+  @Test
+  void parseRouteRequestRejectsNonBooleanShapeOption() {
+    org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class, () ->
+      McpResource.parseRouteRequest(
+        Map.of("origin", "@agency:A", "destination", "@agency:B", "includeShapeData", "true")
+      )
+    );
   }
 
   @Test
@@ -113,7 +126,7 @@ class McpResourceTest {
       "feed:route",
       "Regional train",
       "Transit Agency",
-      "a82a8794-15d6-4f2a-b9b2-6db4337e88f7"
+      "encoded-polyline"
     );
     var itinerary = new McpRoutingResult.McpItinerary(
       departure,
@@ -133,8 +146,8 @@ class McpResourceTest {
     assertEquals(false, nearestStopJson.path("id").isObject());
     assertEquals("RAIL", serializedLeg.path("mode").asText());
     assertEquals("Transit Agency", serializedLeg.path("agencyName").asText());
-    assertEquals("a82a8794-15d6-4f2a-b9b2-6db4337e88f7", serializedLeg.path("geometryId").asText());
-    assertFalse(serializedLeg.has("geometry"));
+    assertEquals("encoded-polyline", serializedLeg.path("shape").asText());
+    assertFalse(serializedLeg.has("geometryId"));
     assertEquals("Central", serializedLeg.path("from").path("name").asText());
     assertEquals("5", serializedLeg.path("from").path("platformCode").asText());
     assertEquals(departure, serializedLeg.path("departure").asText());

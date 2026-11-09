@@ -14,7 +14,8 @@ public record McpRouteRequest(
   Instant time,
   Duration searchWindow,
   int maxItineraries,
-  Locale locale
+  Locale locale,
+  boolean includeShapeData
 ) {
   public static final int MAX_INTERMEDIATE_STOPS = 10;
   public static final int MAX_ITINERARIES = 10;

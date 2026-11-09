@@ -101,10 +101,7 @@ public final class McpStopIndex {
           );
         }
         try {
-          var id = FeedScopedId.parse(tuple.get(1).asText());
-          if (id == null) {
-            throw new IllegalArgumentException("Stop ID cannot be empty.");
-          }
+          var id = new FeedScopedId("1", tuple.get(1).asText());
           var latitude = Double.parseDouble(tuple.get(2).asText());
           var longitude = Double.parseDouble(tuple.get(3).asText());
           stops.add(new Stop(tuple.get(0).asText(), id, new McpCoordinate(latitude, longitude)));

@@ -36,7 +36,7 @@ public record McpRoutingResult(
     String routeId,
     String routeName,
     String agencyName,
-    String geometryId
+    String shape
   ) {}
 
   public record McpPlace(

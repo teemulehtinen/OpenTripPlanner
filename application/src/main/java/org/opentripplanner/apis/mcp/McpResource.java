@@ -261,6 +261,13 @@ public final class McpResource {
             Map.of("type", "integer", "minimum", 0),
             "maxItineraries",
             Map.of("type", "integer", "minimum", 1, "maximum", 10),
+            "includeShapeData",
+            Map.of(
+              "type",
+              "boolean",
+              "description",
+              "Include encoded route leg shapes inline in the result. Defaults to false."
+            ),
             "locale",
             Map.of("type", "string")
           ),
@@ -383,8 +390,24 @@ public final class McpResource {
       arguments.get("maxItineraries") == null
         ? McpRouteRequest.DEFAULT_MAX_ITINERARIES
         : parseInteger(arguments, "maxItineraries"),
-      parseLocale(arguments.get("locale"))
+      parseLocale(arguments.get("locale")),
+      parseBoolean(arguments, "includeShapeData", false)
     );
+  }
+
+  private static boolean parseBoolean(
+    Map<String, Object> arguments,
+    String name,
+    boolean defaultValue
+  ) {
+    var value = arguments.get(name);
+    if (value == null) {
+      return defaultValue;
+    }
+    if (!(value instanceof Boolean result)) {
+      throw new IllegalArgumentException("'%s' must be a boolean.".formatted(name));
+    }
+    return result;
   }
 
   private static McpStopLocation parseStopLocation(Object value, String name) {

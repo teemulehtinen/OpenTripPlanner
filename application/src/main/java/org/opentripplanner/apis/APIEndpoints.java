@@ -22,7 +22,6 @@ import java.util.List;
 import org.opentripplanner.api.resource.ServerInfoResource;
 import org.opentripplanner.api.resource.UpdaterStatusResource;
 import org.opentripplanner.apis.gtfs.GtfsGraphQLAPI;
-import org.opentripplanner.apis.mcp.McpGeometryResource;
 import org.opentripplanner.apis.mcp.McpResource;
 import org.opentripplanner.apis.transmodel.TransmodelAPI;
 import org.opentripplanner.apis.vectortiles.DebugVectorTilesResource;
@@ -56,7 +55,6 @@ public class APIEndpoints {
     // scheduled to be removed and only here for backwards compatibility
     addIfEnabled(TransmodelGraphQlApi, TransmodelAPI.TransmodelAPIOldPath.class);
     addIfEnabled(McpApi, McpResource.class);
-    addIfEnabled(McpApi, McpGeometryResource.class);
 
     // Sandbox extension APIs
     addIfEnabled(ActuatorAPI, ActuatorAPI.class);

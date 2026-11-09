@@ -13,13 +13,13 @@ public final class McpRoutingResultMapper {
 
   private McpRoutingResultMapper() {}
 
-  public static McpRoutingResult map(RoutingResponse response) {
+  public static McpRoutingResult map(RoutingResponse response, boolean includeShapeData) {
     var itineraries = response.getTripPlan() == null
       ? List.<McpRoutingResult.McpItinerary>of()
       : response
           .getTripPlan()
           .itineraries.stream()
-          .map(McpRoutingResultMapper::mapItinerary)
+          .map(itinerary -> mapItinerary(itinerary, includeShapeData))
           .toList();
 
     return new McpRoutingResult(
@@ -29,17 +29,24 @@ public final class McpRoutingResultMapper {
     );
   }
 
-  private static McpRoutingResult.McpItinerary mapItinerary(Itinerary itinerary) {
+  private static McpRoutingResult.McpItinerary mapItinerary(
+    Itinerary itinerary,
+    boolean includeShapeData
+  ) {
     return new McpRoutingResult.McpItinerary(
       itinerary.startTimeAsInstant().toString(),
       itinerary.endTimeAsInstant().toString(),
       itinerary.totalDuration().toSeconds(),
       itinerary.numberOfTransfers(),
-      itinerary.legs().stream().map(McpRoutingResultMapper::mapLeg).toList()
+      itinerary
+        .legs()
+        .stream()
+        .map(leg -> mapLeg(leg, includeShapeData))
+        .toList()
     );
   }
 
-  private static McpRoutingResult.McpLeg mapLeg(Leg leg) {
+  private static McpRoutingResult.McpLeg mapLeg(Leg leg, boolean includeShapeData) {
     var from = leg.from();
     var to = leg.to();
     var route = leg.route();
@@ -61,6 +68,7 @@ public final class McpRoutingResultMapper {
       to.stop == null ? null : to.stop.getPlatformCode()
     );
     var geometry = leg.legGeometry();
+    var shape = includeShapeData && geometry != null ? EncodedPolyline.of(geometry).points() : null;
     return new McpRoutingResult.McpLeg(
       leg.isTransitLeg(),
       leg instanceof TransitLeg transitLeg ? transitLeg.mode().name() : "WALK",
@@ -72,7 +80,7 @@ public final class McpRoutingResultMapper {
       route == null ? null : route.getId().toString(),
       route == null ? null : route.getName().toString(),
       agency == null ? null : agency.getName(),
-      geometry == null ? null : McpGeometryStore.store(EncodedPolyline.of(geometry).points())
+      shape
     );
   }
 

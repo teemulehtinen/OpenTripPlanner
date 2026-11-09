@@ -15,7 +15,10 @@ public final class McpRoutingService {
   /** Route between existing transit stops, optionally visiting ordered intermediate stops. */
   public McpRoutingResult route(McpRouteRequest input) {
     var request = McpRouteRequestMapper.map(input, serverContext);
-    return McpRoutingResultMapper.map(serverContext.routingService().route(request));
+    return McpRoutingResultMapper.map(
+      serverContext.routingService().route(request),
+      input.includeShapeData()
+    );
   }
 
   /** Find transit stops near a coordinate using the graph's street-independent fallback if needed. */

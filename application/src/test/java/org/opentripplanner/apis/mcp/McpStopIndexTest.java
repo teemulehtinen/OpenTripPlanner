@@ -19,15 +19,31 @@ class McpStopIndexTest {
     var index = McpStopIndex.parse(
       """
       [
-        ["Central", "feed:first", 60.17, 24.94],
-        ["Center", "feed:second", 61.17, 24.94]
+        ["Central", "first", 60.17, 24.94],
+        ["Center", "second", 61.17, 24.94]
       ]
       """
     );
 
     assertEquals(
-      FeedScopedId.parse("feed:first"),
+      new FeedScopedId("1", "first"),
       index.resolve(new McpStopLocation.IdOrName("centrall"))
+    );
+  }
+
+  @Test
+  void scopesRawStopIdsWithoutBreakingColonsInsideIds() {
+    var index = McpStopIndex.parse(
+      """
+      [
+        ["Bordeaux", "fr-83582StopPoint:OCECar TER-87581009", 44.82, -0.55]
+      ]
+      """
+    );
+
+    assertEquals(
+      new FeedScopedId("1", "fr-83582StopPoint:OCECar TER-87581009"),
+      index.resolve(new McpStopLocation.IdOrName("Bordeaux"))
     );
   }
 
@@ -58,14 +74,14 @@ class McpStopIndexTest {
     var index = McpStopIndex.parse(
       """
       [
-        ["München Hauptbahnhof", "feed:munich", 48.14, 11.56],
-        ["Munster Bahnhof", "feed:munster", 51.98, 7.63]
+        ["München Hauptbahnhof", "munich", 48.14, 11.56],
+        ["Munster Bahnhof", "munster", 51.98, 7.63]
       ]
       """
     );
 
     assertEquals(
-      FeedScopedId.parse("feed:munich"),
+      new FeedScopedId("1", "munich"),
       index.resolve(new McpStopLocation.IdOrName("MUNCHEN Hauptbahnhof"))
     );
   }
@@ -75,16 +91,13 @@ class McpStopIndexTest {
     var index = McpStopIndex.parse(
       """
       [
-        ["NYC", "feed:nyc", 40.71, -74.00],
-        ["NY", "feed:ny", 40.71, -74.00]
+        ["NYC", "nyc", 40.71, -74.00],
+        ["NY", "ny", 40.71, -74.00]
       ]
       """
     );
 
-    assertEquals(
-      FeedScopedId.parse("feed:nyc"),
-      index.resolve(new McpStopLocation.IdOrName("nYc"))
-    );
+    assertEquals(new FeedScopedId("1", "nyc"), index.resolve(new McpStopLocation.IdOrName("nYc")));
     assertThrows(IllegalArgumentException.class, () ->
       index.resolve(new McpStopLocation.IdOrName("nx"))
     );
@@ -92,7 +105,7 @@ class McpStopIndexTest {
 
   @Test
   void returnsNoMatchWhenNoStopSharesTheFourCharacterPrefix() {
-    var index = McpStopIndex.parse("[[\"Central\", \"feed:central\", 60.17, 24.94]]");
+    var index = McpStopIndex.parse("[[\"Central\", \"central\", 60.17, 24.94]]");
 
     assertThrows(IllegalArgumentException.class, () ->
       index.resolve(new McpStopLocation.IdOrName("Harbor"))
@@ -104,14 +117,14 @@ class McpStopIndexTest {
     var index = McpStopIndex.parse(
       """
       [
-        ["Farther", "feed:farther", 60.20, 24.94],
-        ["Closest", "feed:closest", 60.17, 24.94]
+        ["Farther", "farther", 60.20, 24.94],
+        ["Closest", "closest", 60.17, 24.94]
       ]
       """
     );
 
     assertEquals(
-      FeedScopedId.parse("feed:closest"),
+      new FeedScopedId("1", "closest"),
       index.resolve(new McpStopLocation.Coordinate(new McpCoordinate(60.171, 24.94)))
     );
   }
@@ -120,19 +133,19 @@ class McpStopIndexTest {
   void parsesStringCoordinatesFromStopIndex() {
     var index = McpStopIndex.parse(
       """
-      [["Closest", "feed:closest", "60.171000", "24.940000"]]
+      [["Closest", "closest", "60.171000", "24.940000"]]
       """
     );
 
     assertEquals(
-      FeedScopedId.parse("feed:closest"),
+      new FeedScopedId("1", "closest"),
       index.resolve(new McpStopLocation.Coordinate(new McpCoordinate(60.171, 24.94)))
     );
   }
 
   @Test
   void rejectsUnknownNamesAndCoordinatesOutsideSearchRadius() {
-    var index = McpStopIndex.parse("[[\"Central\", \"feed:central\", 60.17, 24.94]]");
+    var index = McpStopIndex.parse("[[\"Central\", \"central\", 60.17, 24.94]]");
 
     assertThrows(IllegalArgumentException.class, () ->
       index.resolve(new McpStopLocation.IdOrName("Unknown"))
@@ -144,7 +157,7 @@ class McpStopIndexTest {
 
   @Test
   void discoversAndReadsStopsJsonAsAnMcpResource() throws Exception {
-    var content = "[[\"Central\",\"feed:central\",60.17,24.94]]";
+    var content = "[[\"Central\",\"central\",60.17,24.94]]";
     Files.writeString(directory.resolve(McpStopIndex.FILE_NAME), content);
 
     assertEquals(1, McpStopIndex.findResource(directory.toFile()).stream().count());
@@ -155,7 +168,7 @@ class McpStopIndexTest {
   void rejectsMalformedStopIndexTuples() {
     assertThrows(IllegalArgumentException.class, () -> McpStopIndex.parse("[[\"Central\"]]"));
     assertThrows(IllegalArgumentException.class, () ->
-      McpStopIndex.parse("[[\"Central\", \"feed:central\", \"not-a-number\", \"24.94\"]]")
+      McpStopIndex.parse("[[\"Central\", \"central\", \"not-a-number\", \"24.94\"]]")
     );
   }
 }
