@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import org.opentripplanner.standalone.api.OtpServerRequestContext;
+import org.opentripplanner.transit.model.basic.TransitMode;
 
 /** Minimal MCP JSON-RPC endpoint for the initial routing tools. */
 @Path("/mcp")
@@ -268,6 +269,26 @@ public final class McpResource {
               "description",
               "Include encoded route leg shapes inline in the result. Defaults to false."
             ),
+            "transit_mode",
+            Map.of(
+              "type",
+              "array",
+              "description",
+              "Transit modes to include. If omitted, OTP's configured transit filters are unchanged.",
+              "items",
+              Map.of(
+                "type",
+                "string",
+                "enum",
+                java.util.Arrays.stream(TransitMode.values()).map(Enum::name).toList()
+              ),
+              "minItems",
+              1,
+              "maxItems",
+              TransitMode.values().length,
+              "uniqueItems",
+              true
+            ),
             "locale",
             Map.of("type", "string")
           ),
@@ -390,6 +411,7 @@ public final class McpResource {
       arguments.get("maxItineraries") == null
         ? McpRouteRequest.DEFAULT_MAX_ITINERARIES
         : parseInteger(arguments, "maxItineraries"),
+      parseTransitModes(arguments.get("transit_mode")),
       parseLocale(arguments.get("locale")),
       parseBoolean(arguments, "includeShapeData", false)
     );
@@ -454,6 +476,40 @@ public final class McpResource {
     return values
       .stream()
       .map(value1 -> parseStopLocation(value1, "intermediateStops entry"))
+      .toList();
+  }
+
+  private static List<TransitMode> parseTransitModes(Object value) {
+    if (value == null) {
+      return List.of();
+    }
+    if (!(value instanceof List<?> values) || values.isEmpty()) {
+      throw new IllegalArgumentException(
+        "'transit_mode' must be a non-empty list of transit modes."
+      );
+    }
+    if (values.size() > TransitMode.values().length) {
+      throw new IllegalArgumentException(
+        "'transit_mode' must contain at most %d modes.".formatted(TransitMode.values().length)
+      );
+    }
+    if (values.stream().distinct().count() != values.size()) {
+      throw new IllegalArgumentException("'transit_mode' must not contain duplicates.");
+    }
+    return values
+      .stream()
+      .map(mode -> {
+        if (!(mode instanceof String name)) {
+          throw new IllegalArgumentException(
+            "Each 'transit_mode' entry must be a transit mode name."
+          );
+        }
+        try {
+          return TransitMode.valueOf(name);
+        } catch (IllegalArgumentException e) {
+          throw new IllegalArgumentException("Unknown transit mode in 'transit_mode': " + name, e);
+        }
+      })
       .toList();
   }
 

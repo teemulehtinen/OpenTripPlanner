@@ -29,6 +29,7 @@ class McpRequestTest {
       Instant.parse("2026-09-11T10:00:00Z"),
       Duration.ofMinutes(20),
       3,
+      List.of(),
       Locale.ENGLISH,
       true
     );
@@ -60,6 +61,7 @@ class McpRequestTest {
         Instant.now(),
         Duration.ZERO,
         1,
+        List.of(),
         Locale.ENGLISH,
         false
       )

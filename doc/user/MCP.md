@@ -40,6 +40,7 @@ The route tool requires:
 - `timeDirection`: `DEPART_AT` or `ARRIVE_BY`
 - `searchWindowSeconds`: bounded search window
 - `maxItineraries`: bounded result count
+- `transit_mode`: optional non-empty list of transit modes to include, using OTP mode names such as `RAIL`, `COACH`, `SUBWAY`, `BUS`, `TRAM`, `FERRY`, `AIRPLANE`, `CABLE_CAR`, `GONDOLA`, `FUNICULAR`, `TROLLEYBUS`, `MONORAIL`, `CARPOOL`, `TAXI`, or `SNOW_AND_ICE`; when omitted, configured filters are unchanged
 - `locale`: optional language tag
 
 The MCP endpoint is disabled by default. For local Streamable HTTP clients, the implementation

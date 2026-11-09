@@ -2,8 +2,10 @@ package org.opentripplanner.apis.mcp;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import org.opentripplanner.transit.model.basic.TransitMode;
 
 /** Transport-independent input for the first MCP routing tool. */
 public record McpRouteRequest(
@@ -14,6 +16,7 @@ public record McpRouteRequest(
   Instant time,
   Duration searchWindow,
   int maxItineraries,
+  List<TransitMode> transitModes,
   Locale locale,
   boolean includeShapeData
 ) {
@@ -59,6 +62,19 @@ public record McpRouteRequest(
       throw new IllegalArgumentException(
         "Max itineraries must be between 1 and %d.".formatted(MAX_ITINERARIES)
       );
+    }
+    if (transitModes == null) {
+      transitModes = List.of();
+    } else {
+      transitModes = List.copyOf(transitModes);
+    }
+    if (transitModes.size() > TransitMode.values().length) {
+      throw new IllegalArgumentException(
+        "At most %d transit modes are supported.".formatted(TransitMode.values().length)
+      );
+    }
+    if (new HashSet<>(transitModes).size() != transitModes.size()) {
+      throw new IllegalArgumentException("Transit modes must not contain duplicates.");
     }
     if (locale == null) {
       locale = Locale.ENGLISH;

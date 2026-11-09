@@ -5,9 +5,12 @@ import java.util.List;
 import org.opentripplanner.core.model.id.FeedScopedId;
 import org.opentripplanner.model.GenericLocation;
 import org.opentripplanner.routing.api.request.RouteRequest;
+import org.opentripplanner.routing.api.request.request.filter.SelectRequest;
+import org.opentripplanner.routing.api.request.request.filter.TransitFilterRequest;
 import org.opentripplanner.routing.api.request.via.PassThroughViaLocation;
 import org.opentripplanner.routing.api.request.via.ViaLocation;
 import org.opentripplanner.standalone.api.OtpServerRequestContext;
+import org.opentripplanner.transit.model.basic.MainAndSubMode;
 
 /** Maps the MCP routing contract to OTP's shared routing request. */
 public final class McpRouteRequestMapper {
@@ -40,6 +43,15 @@ public final class McpRouteRequestMapper {
         )
       );
     });
+    if (!input.transitModes().isEmpty()) {
+      var selectedModes = input.transitModes().stream().map(MainAndSubMode::new).toList();
+      var modeFilter = TransitFilterRequest.of()
+        .addSelect(SelectRequest.of().withTransportModes(selectedModes).build())
+        .build();
+      request.withJourney(journey ->
+        journey.withTransit(transit -> transit.withFilters(List.of(modeFilter)))
+      );
+    }
     return request.buildRequest();
   }
 

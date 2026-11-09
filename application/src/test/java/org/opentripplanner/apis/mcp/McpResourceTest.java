@@ -4,15 +4,70 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.io.File;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
+import org.opentripplanner.standalone.api.OtpServerRequestContext;
+import org.opentripplanner.transit.model.basic.TransitMode;
 
 class McpResourceTest {
+
+  @Test
+  void routeToolSchemaAdvertisesTransitModes() {
+    var serverContext = Mockito.mock(OtpServerRequestContext.class);
+    when(serverContext.baseDirectory()).thenReturn(new File("."));
+    var resource = new McpResource(serverContext);
+
+    var response = resource.handle(
+      Map.of("jsonrpc", "2.0", "id", 1, "method", "tools/list"),
+      null,
+      null,
+      "application/json, text/event-stream"
+    );
+
+    var body = (Map<?, ?>) response.getEntity();
+    var result = (Map<?, ?>) body.get("result");
+    var tools = (List<?>) result.get("tools");
+    var routeTool = (Map<?, ?>) tools
+      .stream()
+      .map(value -> (Map<?, ?>) value)
+      .filter(tool -> "route".equals(tool.get("name")))
+      .findFirst()
+      .orElseThrow();
+    var inputSchema = (Map<?, ?>) routeTool.get("inputSchema");
+    var properties = (Map<?, ?>) inputSchema.get("properties");
+    var transitMode = (Map<?, ?>) properties.get("transit_mode");
+    var items = (Map<?, ?>) transitMode.get("items");
+
+    assertEquals(
+      List.of(
+        "RAIL",
+        "COACH",
+        "SUBWAY",
+        "BUS",
+        "TRAM",
+        "FERRY",
+        "AIRPLANE",
+        "CABLE_CAR",
+        "GONDOLA",
+        "FUNICULAR",
+        "TROLLEYBUS",
+        "MONORAIL",
+        "CARPOOL",
+        "TAXI",
+        "SNOW_AND_ICE"
+      ),
+      items.get("enum")
+    );
+    assertFalse(((List<?>) inputSchema.get("required")).contains("transit_mode"));
+  }
 
   @Test
   void parseRouteRequestFromToolArguments() {
@@ -33,7 +88,9 @@ class McpResourceTest {
         "maxItineraries",
         3,
         "includeShapeData",
-        true
+        true,
+        "transit_mode",
+        List.of("RAIL", "FERRY")
       )
     );
 
@@ -52,6 +109,7 @@ class McpResourceTest {
     assertEquals(McpTimeDirection.DEPART_AT, request.timeDirection());
     assertEquals(Duration.ofMinutes(30), request.searchWindow());
     assertEquals(3, request.maxItineraries());
+    assertEquals(List.of(TransitMode.RAIL, TransitMode.FERRY), request.transitModes());
     assertEquals(true, request.includeShapeData());
   }
 
@@ -68,7 +126,24 @@ class McpResourceTest {
     assertFalse(request.time().isAfter(afterParsing));
     assertEquals(Duration.ofHours(24), request.searchWindow());
     assertEquals(10, request.maxItineraries());
+    assertEquals(List.of(), request.transitModes());
     assertEquals(false, request.includeShapeData());
+  }
+
+  @Test
+  void parseRouteRequestRejectsUnknownTransitMode() {
+    org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class, () ->
+      McpResource.parseRouteRequest(
+        Map.of(
+          "origin",
+          "@agency:A",
+          "destination",
+          "@agency:B",
+          "transit_mode",
+          List.of("SPACE_SHIP")
+        )
+      )
+    );
   }
 
   @Test
