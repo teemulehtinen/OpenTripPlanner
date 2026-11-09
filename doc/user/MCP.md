@@ -43,6 +43,13 @@ The route tool requires:
 - `transit_mode`: optional non-empty list of transit modes to include, using OTP mode names such as `RAIL`, `COACH`, `SUBWAY`, `BUS`, `TRAM`, `FERRY`, `AIRPLANE`, `CABLE_CAR`, `GONDOLA`, `FUNICULAR`, `TROLLEYBUS`, `MONORAIL`, `CARPOOL`, `TAXI`, or `SNOW_AND_ICE`; when omitted, configured filters are unchanged
 - `locale`: optional language tag
 
+The route result includes `distanceMeters` on every returned leg. It uses OTP's leg distance when
+available and otherwise estimates the straight-line distance between the leg endpoints; when neither
+is available, the value is `-1`. Walking legs are omitted unless they are between transit legs and
+take more than five minutes according to OTP's planned duration. Such legs are returned with
+`mode: "TRANSFER"`. This filtering only affects the MCP result; the routing search still uses the
+complete itinerary.
+
 The MCP endpoint is disabled by default. For local Streamable HTTP clients, the implementation
 accepts localhost origins and requires clients to advertise both `application/json` and
 `text/event-stream` in the `Accept` header. Non-local deployments must put the endpoint behind the

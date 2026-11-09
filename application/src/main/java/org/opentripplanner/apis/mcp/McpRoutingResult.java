@@ -31,6 +31,7 @@ public record McpRoutingResult(
     String departure,
     String arrival,
     long durationSeconds,
+    double distanceMeters,
     McpPlace from,
     McpPlace to,
     String routeId,

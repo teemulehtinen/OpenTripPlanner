@@ -1,5 +1,6 @@
 package org.opentripplanner.apis.mcp;
 
+import java.time.Duration;
 import java.util.List;
 import org.opentripplanner.api.model.geometry.EncodedPolyline;
 import org.opentripplanner.model.plan.Itinerary;
@@ -7,9 +8,12 @@ import org.opentripplanner.model.plan.Leg;
 import org.opentripplanner.model.plan.TransitLeg;
 import org.opentripplanner.routing.api.response.RoutingError;
 import org.opentripplanner.routing.api.response.RoutingResponse;
+import org.opentripplanner.street.geometry.SphericalDistanceLibrary;
 
 /** Maps OTP's routing response to the bounded MCP route result. */
 public final class McpRoutingResultMapper {
+
+  private static final Duration MIN_TRANSFER_WALK_DURATION = Duration.ofMinutes(5);
 
   private McpRoutingResultMapper() {}
 
@@ -38,11 +42,27 @@ public final class McpRoutingResultMapper {
       itinerary.endTimeAsInstant().toString(),
       itinerary.totalDuration().toSeconds(),
       itinerary.numberOfTransfers(),
-      itinerary
-        .legs()
-        .stream()
-        .map(leg -> mapLeg(leg, includeShapeData))
-        .toList()
+      mapLegs(itinerary.legs(), includeShapeData)
+    );
+  }
+
+  static List<McpRoutingResult.McpLeg> mapLegs(List<Leg> legs, boolean includeShapeData) {
+    return java.util.stream.IntStream.range(0, legs.size())
+      .filter(index -> includeLeg(legs, index))
+      .mapToObj(index -> mapLeg(legs.get(index), includeShapeData))
+      .toList();
+  }
+
+  private static boolean includeLeg(List<Leg> legs, int index) {
+    var leg = legs.get(index);
+    if (!leg.isWalkingLeg()) {
+      return true;
+    }
+
+    return (
+      leg.duration().compareTo(MIN_TRANSFER_WALK_DURATION) > 0 &&
+      legs.subList(0, index).stream().anyMatch(Leg::isTransitLeg) &&
+      legs.subList(index + 1, legs.size()).stream().anyMatch(Leg::isTransitLeg)
     );
   }
 
@@ -69,12 +89,18 @@ public final class McpRoutingResultMapper {
     );
     var geometry = leg.legGeometry();
     var shape = includeShapeData && geometry != null ? EncodedPolyline.of(geometry).points() : null;
+    var mode = leg instanceof TransitLeg transitLeg
+      ? transitLeg.mode().name()
+      : leg.isWalkingLeg()
+        ? "TRANSFER"
+        : "WALK";
     return new McpRoutingResult.McpLeg(
       leg.isTransitLeg(),
-      leg instanceof TransitLeg transitLeg ? transitLeg.mode().name() : "WALK",
+      mode,
       leg.startTime().toInstant().toString(),
       leg.endTime().toInstant().toString(),
       leg.duration().toSeconds(),
+      distanceMeters(leg),
       fromPlace,
       toPlace,
       route == null ? null : route.getId().toString(),
@@ -82,6 +108,25 @@ public final class McpRoutingResultMapper {
       agency == null ? null : agency.getName(),
       shape
     );
+  }
+
+  private static double distanceMeters(Leg leg) {
+    var distanceMeters = leg.distanceMeters();
+    if (Double.isFinite(distanceMeters) && distanceMeters >= 0) {
+      return distanceMeters;
+    }
+
+    var from = leg.from().coordinate;
+    var to = leg.to().coordinate;
+    if (from != null && to != null) {
+      return SphericalDistanceLibrary.distance(
+        from.latitude(),
+        from.longitude(),
+        to.latitude(),
+        to.longitude()
+      );
+    }
+    return distanceMeters;
   }
 
   private static McpRoutingResult.McpRoutingError mapError(RoutingError error) {

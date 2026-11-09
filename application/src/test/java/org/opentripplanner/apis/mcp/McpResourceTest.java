@@ -196,6 +196,7 @@ class McpResourceTest {
       departure,
       arrival,
       2700,
+      1234.5,
       place,
       place,
       "feed:route",
@@ -222,6 +223,7 @@ class McpResourceTest {
     assertEquals("RAIL", serializedLeg.path("mode").asText());
     assertEquals("Transit Agency", serializedLeg.path("agencyName").asText());
     assertEquals("encoded-polyline", serializedLeg.path("shape").asText());
+    assertEquals(1234.5, serializedLeg.path("distanceMeters").asDouble());
     assertFalse(serializedLeg.has("geometryId"));
     assertEquals("Central", serializedLeg.path("from").path("name").asText());
     assertEquals("5", serializedLeg.path("from").path("platformCode").asText());
