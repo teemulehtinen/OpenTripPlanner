@@ -116,24 +116,11 @@ public final class McpStopIndex {
   }
 
   FeedScopedId resolve(McpStopLocation location) {
-    if (location instanceof McpStopLocation.IdOrName idOrName) {
-      var value = idOrName.value().trim();
-      if (isStopIdReference(value)) {
-        var stopId = value.substring(1).trim();
-        try {
-          var parsedId = FeedScopedId.parse(stopId);
-          if (parsedId == null) {
-            throw new IllegalArgumentException("Stop ID cannot be empty.");
-          }
-          return parsedId;
-        } catch (IllegalArgumentException e) {
-          throw new IllegalArgumentException(
-            "Invalid stop ID: " + value + ". Prefix a feed-scoped stop ID with '@'.",
-            e
-          );
-        }
-      }
-      return resolveName(value);
+    if (location instanceof McpStopLocation.StopId stopId) {
+      return resolveStopId(stopId.value());
+    }
+    if (location instanceof McpStopLocation.Name name) {
+      return resolveName(name.value());
     }
 
     var coordinate = ((McpStopLocation.Coordinate) location).value();
@@ -150,6 +137,22 @@ public final class McpStopIndex {
           )
         )
       );
+  }
+
+  private FeedScopedId resolveStopId(String value) {
+    var stopId = value.trim();
+    if (isStopIdReference(stopId)) {
+      stopId = stopId.substring(1).trim();
+    }
+    try {
+      var parsedId = FeedScopedId.parse(stopId);
+      if (parsedId == null) {
+        throw new IllegalArgumentException("Stop ID cannot be empty.");
+      }
+      return parsedId;
+    } catch (IllegalArgumentException e) {
+      throw new IllegalArgumentException("Invalid feed-scoped stop ID: " + value, e);
+    }
   }
 
   private FeedScopedId resolveName(String value) {

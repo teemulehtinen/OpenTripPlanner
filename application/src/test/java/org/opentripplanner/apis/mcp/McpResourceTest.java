@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -20,7 +21,7 @@ import org.opentripplanner.transit.model.basic.TransitMode;
 class McpResourceTest {
 
   @Test
-  void routeToolSchemaAdvertisesTransitModes() {
+  void routeToolSchemaAdvertisesModesAndExplicitStopLocationChoices() {
     var serverContext = Mockito.mock(OtpServerRequestContext.class);
     when(serverContext.baseDirectory()).thenReturn(new File("."));
     var resource = new McpResource(serverContext);
@@ -67,6 +68,34 @@ class McpResourceTest {
       items.get("enum")
     );
     assertFalse(((List<?>) inputSchema.get("required")).contains("transit_mode"));
+
+    var origin = (Map<?, ?>) properties.get("origin");
+    var locationProperties = (Map<?, ?>) origin.get("properties");
+    assertEquals("object", origin.get("type"));
+    assertEquals("string", ((Map<?, ?>) locationProperties.get("stopId")).get("type"));
+    assertEquals("string", ((Map<?, ?>) locationProperties.get("name")).get("type"));
+    assertEquals("number", ((Map<?, ?>) locationProperties.get("latitude")).get("type"));
+    assertEquals("number", ((Map<?, ?>) locationProperties.get("longitude")).get("type"));
+    assertEquals(
+      List.of(
+        Map.of("required", List.of("stopId")),
+        Map.of("required", List.of("name")),
+        Map.of("required", List.of("latitude", "longitude"))
+      ),
+      origin.get("oneOf")
+    );
+
+    var intermediateStops = (Map<?, ?>) properties.get("intermediateStops");
+    var intermediateLocation = (Map<?, ?>) intermediateStops.get("items");
+    assertEquals("object", intermediateLocation.get("type"));
+    assertEquals(
+      "string",
+      ((Map<?, ?>) ((Map<?, ?>) intermediateLocation.get("properties")).get("stopId")).get("type")
+    );
+    assertEquals(
+      "string",
+      ((Map<?, ?>) ((Map<?, ?>) intermediateLocation.get("properties")).get("name")).get("type")
+    );
   }
 
   @Test
@@ -95,14 +124,14 @@ class McpResourceTest {
     );
 
     assertNotNull(request);
-    assertEquals("@agency:A", ((McpStopLocation.IdOrName) request.origin()).value());
-    assertEquals("@agency:B", ((McpStopLocation.IdOrName) request.destination()).value());
+    assertEquals("agency:A", ((McpStopLocation.StopId) request.origin()).value());
+    assertEquals("agency:B", ((McpStopLocation.StopId) request.destination()).value());
     assertEquals(
-      List.of("@agency:C", "@agency:D"),
+      List.of("agency:C", "agency:D"),
       request
         .intermediateStops()
         .stream()
-        .map(stop -> ((McpStopLocation.IdOrName) stop).value())
+        .map(stop -> ((McpStopLocation.StopId) stop).value())
         .toList()
     );
     assertEquals(Instant.parse("2026-09-10T08:15:00Z"), request.time());
@@ -156,23 +185,65 @@ class McpResourceTest {
   }
 
   @Test
-  void parseRouteRequestAcceptsStopNamesAndCoordinateObjects() {
+  void parseRouteRequestAcceptsStopIdsNamesAndCoordinateObjects() {
     var request = McpResource.parseRouteRequest(
       Map.of(
         "origin",
-        "Central Station",
+        Map.of("name", "Central Station"),
         "destination",
         Map.of("latitude", 60.17, "longitude", 24.94),
         "intermediateStops",
-        List.of("Harbor", Map.of("latitude", 60.16, "longitude", 24.95))
+        List.of(Map.of("stopId", "agency:harbor"), Map.of("latitude", 60.16, "longitude", 24.95))
       )
     );
 
-    assertEquals("Central Station", ((McpStopLocation.IdOrName) request.origin()).value());
+    assertEquals("Central Station", ((McpStopLocation.Name) request.origin()).value());
     var destination = assertInstanceOf(McpStopLocation.Coordinate.class, request.destination());
     assertEquals(new McpCoordinate(60.17, 24.94), destination.value());
-    assertInstanceOf(McpStopLocation.IdOrName.class, request.intermediateStops().get(0));
+    assertEquals(
+      "agency:harbor",
+      ((McpStopLocation.StopId) request.intermediateStops().get(0)).value()
+    );
     assertInstanceOf(McpStopLocation.Coordinate.class, request.intermediateStops().get(1));
+  }
+
+  @Test
+  void parseRouteRequestRejectsMissingAndAmbiguousStopLocationChoices() {
+    assertThrows(IllegalArgumentException.class, () ->
+      McpResource.parseRouteRequest(
+        Map.of(
+          "origin",
+          Map.of("stopId", "agency:central", "name", "Central Station"),
+          "destination",
+          "Harbor"
+        )
+      )
+    );
+    assertThrows(IllegalArgumentException.class, () ->
+      McpResource.parseRouteRequest(
+        Map.of("origin", Map.of("latitude", 60.17), "destination", Map.of("name", "Harbor"))
+      )
+    );
+    assertThrows(IllegalArgumentException.class, () ->
+      McpResource.parseRouteRequest(
+        Map.of(
+          "origin",
+          Map.of("name", "Central Station", "latitude", 60.17, "longitude", 24.94),
+          "destination",
+          Map.of("name", "Harbor")
+        )
+      )
+    );
+  }
+
+  @Test
+  void parseRouteRequestKeepsLegacyStopLocations() {
+    var request = McpResource.parseRouteRequest(
+      Map.of("origin", "@agency:A", "destination", Map.of("stopIdOrName", "Central Station"))
+    );
+
+    assertEquals("agency:A", ((McpStopLocation.StopId) request.origin()).value());
+    assertEquals("Central Station", ((McpStopLocation.Name) request.destination()).value());
   }
 
   @Test
@@ -181,8 +252,8 @@ class McpResourceTest {
       Map.of("origin", "@agency:A", "destination", "Central Station")
     );
 
-    assertEquals("@agency:A", ((McpStopLocation.IdOrName) request.origin()).value());
-    assertEquals("Central Station", ((McpStopLocation.IdOrName) request.destination()).value());
+    assertEquals("agency:A", ((McpStopLocation.StopId) request.origin()).value());
+    assertEquals("Central Station", ((McpStopLocation.Name) request.destination()).value());
   }
 
   @Test

@@ -1,13 +1,23 @@
 package org.opentripplanner.apis.mcp;
 
-/** A stop ID or name, or a coordinate to resolve to a stop. */
+/** A stop ID, name, or coordinate pair to resolve to a stop. */
 public sealed interface McpStopLocation
-  permits McpStopLocation.IdOrName, McpStopLocation.Coordinate {
-  record IdOrName(String value) implements McpStopLocation {
-    public IdOrName {
+  permits McpStopLocation.StopId, McpStopLocation.Name, McpStopLocation.Coordinate {
+  record StopId(String value) implements McpStopLocation {
+    public StopId {
       if (value == null || value.isBlank()) {
-        throw new IllegalArgumentException("A stop ID or name is required.");
+        throw new IllegalArgumentException("A stop ID is required.");
       }
+      value = value.trim();
+    }
+  }
+
+  record Name(String value) implements McpStopLocation {
+    public Name {
+      if (value == null || value.isBlank()) {
+        throw new IllegalArgumentException("A stop name is required.");
+      }
+      value = value.trim();
     }
   }
 

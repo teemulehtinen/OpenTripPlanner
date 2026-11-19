@@ -11,20 +11,15 @@ import org.junit.jupiter.api.Test;
 
 class McpRequestTest {
 
-  private static final McpStopLocation ORIGIN = new McpStopLocation.IdOrName("@feed:origin");
-  private static final McpStopLocation DESTINATION = new McpStopLocation.IdOrName(
-    "@feed:destination"
-  );
+  private static final McpStopLocation ORIGIN = new McpStopLocation.StopId("feed:origin");
+  private static final McpStopLocation DESTINATION = new McpStopLocation.StopId("feed:destination");
 
   @Test
   void routeRequestKeepsOrderedStopIds() {
     var request = new McpRouteRequest(
       ORIGIN,
       DESTINATION,
-      List.of(
-        new McpStopLocation.IdOrName("@feed:via1"),
-        new McpStopLocation.IdOrName("@feed:via2")
-      ),
+      List.of(new McpStopLocation.StopId("feed:via1"), new McpStopLocation.StopId("feed:via2")),
       McpTimeDirection.ARRIVE_BY,
       Instant.parse("2026-09-11T10:00:00Z"),
       Duration.ofMinutes(20),
@@ -35,11 +30,11 @@ class McpRequestTest {
     );
 
     assertEquals(
-      List.of("@feed:via1", "@feed:via2"),
+      List.of("feed:via1", "feed:via2"),
       request
         .intermediateStops()
         .stream()
-        .map(stop -> ((McpStopLocation.IdOrName) stop).value())
+        .map(stop -> ((McpStopLocation.StopId) stop).value())
         .toList()
     );
     assertEquals(McpTimeDirection.ARRIVE_BY, request.timeDirection());
@@ -49,7 +44,7 @@ class McpRequestTest {
   @Test
   void routeRequestRejectsTooManyIntermediateStops() {
     var stops = java.util.stream.IntStream.range(0, McpRouteRequest.MAX_INTERMEDIATE_STOPS + 1)
-      .mapToObj(index -> (McpStopLocation) new McpStopLocation.IdOrName("@feed:via" + index))
+      .mapToObj(index -> (McpStopLocation) new McpStopLocation.StopId("feed:via" + index))
       .toList();
 
     assertThrows(IllegalArgumentException.class, () ->

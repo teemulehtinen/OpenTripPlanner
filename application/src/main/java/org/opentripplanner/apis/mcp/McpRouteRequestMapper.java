@@ -57,8 +57,7 @@ public final class McpRouteRequestMapper {
 
   private static boolean requiresStopIndex(McpStopLocation location) {
     return (
-      location instanceof McpStopLocation.Coordinate ||
-      !McpStopIndex.isStopIdReference(((McpStopLocation.IdOrName) location).value())
+      location instanceof McpStopLocation.Coordinate || location instanceof McpStopLocation.Name
     );
   }
 

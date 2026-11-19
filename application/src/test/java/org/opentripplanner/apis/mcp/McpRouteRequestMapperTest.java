@@ -56,8 +56,8 @@ class McpRouteRequestMapperTest {
 
   private static McpRouteRequest routeRequest(List<TransitMode> transitModes) {
     return new McpRouteRequest(
-      new McpStopLocation.IdOrName("@agency:A"),
-      new McpStopLocation.IdOrName("@agency:B"),
+      new McpStopLocation.StopId("agency:A"),
+      new McpStopLocation.StopId("agency:B"),
       List.of(),
       McpTimeDirection.DEPART_AT,
       Instant.parse("2026-09-10T08:15:00Z"),

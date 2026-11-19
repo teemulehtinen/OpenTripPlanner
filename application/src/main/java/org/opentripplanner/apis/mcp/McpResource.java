@@ -241,7 +241,7 @@ public final class McpResource {
         "name",
         ROUTE_TOOL,
         "description",
-        "Route between transit stops. Prefix feed-scoped stop IDs with '@'; plain strings are name searches in stops.json, and objects are coordinates.",
+        "Route between transit stops. For each stop, provide exactly one of stopId, name, or both latitude and longitude.",
         "inputSchema",
         Map.of(
           "type",
@@ -336,30 +336,43 @@ public final class McpResource {
 
   private static Map<String, Object> stopLocationSchema() {
     return Map.of(
-      "oneOf",
-      List.of(
+      "type",
+      "object",
+      "description",
+      "Provide exactly one of stopId, name, or both latitude and longitude.",
+      "properties",
+      Map.of(
+        "stopId",
         Map.of(
           "type",
           "string",
+          "minLength",
+          1,
           "description",
-          "Feed-scoped stop ID or exact stop name from the stops.json resource."
+          "Feed-scoped OTP stop ID from the stops.json resource."
         ),
+        "name",
         Map.of(
           "type",
-          "object",
-          "properties",
-          Map.of(
-            "latitude",
-            Map.of("type", "number", "minimum", -90, "maximum", 90),
-            "longitude",
-            Map.of("type", "number", "minimum", -180, "maximum", 180)
-          ),
-          "required",
-          List.of("latitude", "longitude"),
-          "additionalProperties",
-          false
-        )
-      )
+          "string",
+          "minLength",
+          1,
+          "description",
+          "Exact stop name from the stops.json resource."
+        ),
+        "latitude",
+        Map.of("type", "number", "minimum", -90, "maximum", 90),
+        "longitude",
+        Map.of("type", "number", "minimum", -180, "maximum", 180)
+      ),
+      "oneOf",
+      List.of(
+        Map.of("required", List.of("stopId")),
+        Map.of("required", List.of("name")),
+        Map.of("required", List.of("latitude", "longitude"))
+      ),
+      "additionalProperties",
+      false
     );
   }
 
@@ -433,16 +446,44 @@ public final class McpResource {
   }
 
   private static McpStopLocation parseStopLocation(Object value, String name) {
-    if (value instanceof String stopId && !stopId.isBlank()) {
-      return new McpStopLocation.IdOrName(stopId);
+    if (value instanceof String stopIdOrName && !stopIdOrName.isBlank()) {
+      return legacyStopLocation(stopIdOrName);
     }
-    if (value instanceof Map<?, ?> coordinate) {
-      return new McpStopLocation.Coordinate(
-        new McpCoordinate(parseDouble(coordinate, "latitude"), parseDouble(coordinate, "longitude"))
-      );
+    if (value instanceof Map<?, ?> location) {
+      if (location.size() == 1 && location.containsKey("stopId")) {
+        return new McpStopLocation.StopId(requireString(location, "stopId"));
+      }
+      if (location.size() == 1 && location.containsKey("name")) {
+        return new McpStopLocation.Name(requireString(location, "name"));
+      }
+      if (location.size() == 1 && location.containsKey("stopIdOrName")) {
+        return legacyStopLocation(requireString(location, "stopIdOrName"));
+      }
+      if (
+        location.size() == 2 &&
+        location.containsKey("latitude") &&
+        location.containsKey("longitude")
+      ) {
+        return new McpStopLocation.Coordinate(
+          new McpCoordinate(parseDouble(location, "latitude"), parseDouble(location, "longitude"))
+        );
+      }
     }
-    throw new IllegalArgumentException(
-      "'%s' must be a stop ID, stop name, or coordinate object.".formatted(name)
+    throw invalidStopLocation(name);
+  }
+
+  private static McpStopLocation legacyStopLocation(String value) {
+    var trimmedValue = value.trim();
+    return McpStopIndex.isStopIdReference(trimmedValue)
+      ? new McpStopLocation.StopId(trimmedValue.substring(1))
+      : new McpStopLocation.Name(trimmedValue);
+  }
+
+  private static IllegalArgumentException invalidStopLocation(String name) {
+    return new IllegalArgumentException(
+      "'%s' must contain exactly one of stopId, name, or both latitude and longitude.".formatted(
+        name
+      )
     );
   }
 

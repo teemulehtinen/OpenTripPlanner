@@ -27,7 +27,7 @@ class McpStopIndexTest {
 
     assertEquals(
       new FeedScopedId("1", "first"),
-      index.resolve(new McpStopLocation.IdOrName("centrall"))
+      index.resolve(new McpStopLocation.Name("centrall"))
     );
   }
 
@@ -43,29 +43,29 @@ class McpStopIndexTest {
 
     assertEquals(
       new FeedScopedId("1", "fr-83582StopPoint:OCECar TER-87581009"),
-      index.resolve(new McpStopLocation.IdOrName("Bordeaux"))
+      index.resolve(new McpStopLocation.Name("Bordeaux"))
     );
   }
 
   @Test
-  void explicitlyPrefixedFeedScopedStopIdsDoNotRequireTheStopIndex() {
+  void feedScopedStopIdsDoNotRequireTheStopIndex() {
     var index = McpStopIndex.empty();
 
     assertEquals(
       FeedScopedId.parse("feed:central"),
-      index.resolve(new McpStopLocation.IdOrName("@feed:central"))
+      index.resolve(new McpStopLocation.StopId("feed:central"))
     );
   }
 
   @Test
-  void treatsUnprefixedFeedScopedIdsAsNamesAndRejectsInvalidPrefixedIds() {
+  void distinguishesStopIdsFromNamesAndRejectsMalformedStopIds() {
     var index = McpStopIndex.empty();
 
     assertThrows(IllegalArgumentException.class, () ->
-      index.resolve(new McpStopLocation.IdOrName("feed:central"))
+      index.resolve(new McpStopLocation.Name("feed:central"))
     );
     assertThrows(IllegalArgumentException.class, () ->
-      index.resolve(new McpStopLocation.IdOrName("@not-a-stop-id"))
+      index.resolve(new McpStopLocation.StopId("not-a-stop-id"))
     );
   }
 
@@ -82,7 +82,7 @@ class McpStopIndexTest {
 
     assertEquals(
       new FeedScopedId("1", "munich"),
-      index.resolve(new McpStopLocation.IdOrName("MUNCHEN Hauptbahnhof"))
+      index.resolve(new McpStopLocation.Name("MUNCHEN Hauptbahnhof"))
     );
   }
 
@@ -97,9 +97,9 @@ class McpStopIndexTest {
       """
     );
 
-    assertEquals(new FeedScopedId("1", "nyc"), index.resolve(new McpStopLocation.IdOrName("nYc")));
+    assertEquals(new FeedScopedId("1", "nyc"), index.resolve(new McpStopLocation.Name("nYc")));
     assertThrows(IllegalArgumentException.class, () ->
-      index.resolve(new McpStopLocation.IdOrName("nx"))
+      index.resolve(new McpStopLocation.Name("nx"))
     );
   }
 
@@ -108,7 +108,7 @@ class McpStopIndexTest {
     var index = McpStopIndex.parse("[[\"Central\", \"central\", 60.17, 24.94]]");
 
     assertThrows(IllegalArgumentException.class, () ->
-      index.resolve(new McpStopLocation.IdOrName("Harbor"))
+      index.resolve(new McpStopLocation.Name("Harbor"))
     );
   }
 
@@ -148,7 +148,7 @@ class McpStopIndexTest {
     var index = McpStopIndex.parse("[[\"Central\", \"central\", 60.17, 24.94]]");
 
     assertThrows(IllegalArgumentException.class, () ->
-      index.resolve(new McpStopLocation.IdOrName("Unknown"))
+      index.resolve(new McpStopLocation.Name("Unknown"))
     );
     assertThrows(IllegalArgumentException.class, () ->
       index.resolve(new McpStopLocation.Coordinate(new McpCoordinate(61, 25)))
