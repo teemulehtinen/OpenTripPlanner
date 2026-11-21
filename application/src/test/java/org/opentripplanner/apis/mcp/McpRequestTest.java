@@ -2,6 +2,7 @@ package org.opentripplanner.apis.mcp;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -13,6 +14,27 @@ class McpRequestTest {
 
   private static final McpStopLocation ORIGIN = new McpStopLocation.StopId("feed:origin");
   private static final McpStopLocation DESTINATION = new McpStopLocation.StopId("feed:destination");
+
+  @Test
+  void routeRequestDefaultsToTheCurrentTime() {
+    var before = Instant.now();
+    var request = new McpRouteRequest(
+      ORIGIN,
+      DESTINATION,
+      List.of(),
+      McpTimeDirection.DEPART_AT,
+      null,
+      Duration.ofMinutes(20),
+      3,
+      List.of(),
+      Locale.ENGLISH,
+      true
+    );
+    var after = Instant.now();
+
+    assertTrue(!request.time().isBefore(before));
+    assertTrue(!request.time().isAfter(after));
+  }
 
   @Test
   void routeRequestKeepsOrderedStopIds() {
