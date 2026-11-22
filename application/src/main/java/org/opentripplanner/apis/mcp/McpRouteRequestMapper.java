@@ -24,17 +24,17 @@ public final class McpRouteRequestMapper {
     locations.add(input.origin());
     locations.add(input.destination());
     locations.addAll(input.intermediateStops());
-    var stopIndex = locations.stream().anyMatch(McpRouteRequestMapper::requiresStopIndex)
-      ? McpStopIndex.load(serverContext.baseDirectory())
-      : McpStopIndex.empty();
+    var placeIndex = locations.stream().anyMatch(McpRouteRequestMapper::requiresStopIndex)
+      ? McpPlaceIndex.load(serverContext.baseDirectory())
+      : McpPlaceIndex.empty();
     request
-      .withFrom(toGenericLocation(stopIndex.resolve(input.origin())))
-      .withTo(toGenericLocation(stopIndex.resolve(input.destination())))
+      .withFrom(toGenericLocation(placeIndex.resolve(input.origin())))
+      .withTo(toGenericLocation(placeIndex.resolve(input.destination())))
       .withDateTime(input.time())
       .withArriveBy(input.timeDirection() == McpTimeDirection.ARRIVE_BY)
       .withSearchWindow(input.searchWindow())
       .withNumItineraries(input.maxItineraries())
-      .withViaLocations(toViaLocations(input.intermediateStops(), stopIndex));
+      .withViaLocations(toViaLocations(input.intermediateStops(), placeIndex));
     request.withPreferences(preferences -> {
       preferences.withLocale(input.locale());
       preferences.withStreet(street ->
@@ -67,11 +67,11 @@ public final class McpRouteRequestMapper {
 
   private static List<ViaLocation> toViaLocations(
     List<McpStopLocation> stops,
-    McpStopIndex stopIndex
+    McpPlaceIndex placeIndex
   ) {
     return stops
       .stream()
-      .map(stopIndex::resolve)
+      .map(placeIndex::resolve)
       .<ViaLocation>map(McpRouteRequestMapper::toPassThroughViaLocation)
       .toList();
   }

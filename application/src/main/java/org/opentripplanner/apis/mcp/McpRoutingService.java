@@ -57,4 +57,9 @@ public final class McpRoutingService {
   public List<McpNearestStop> findNearestStops(McpNearestStopRequest input) {
     return McpNearestStopService.find(input, serverContext);
   }
+
+  /** Search the cached place index for autocomplete suggestions. */
+  public List<McpPlaceSuggestion> searchPlaces(String query, int limit) {
+    return McpPlaceIndex.load(serverContext.baseDirectory()).search(query, limit);
+  }
 }

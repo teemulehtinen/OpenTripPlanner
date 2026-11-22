@@ -5,20 +5,27 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mockito;
 import org.opentripplanner.standalone.api.OtpServerRequestContext;
 import org.opentripplanner.transit.model.basic.TransitMode;
 
 class McpResourceTest {
+
+  @TempDir
+  Path directory;
 
   @Test
   void routeToolSchemaAdvertisesModesAndExplicitStopLocationChoices() {
@@ -96,6 +103,86 @@ class McpResourceTest {
       "string",
       ((Map<?, ?>) ((Map<?, ?>) intermediateLocation.get("properties")).get("name")).get("type")
     );
+  }
+
+  @Test
+  void advertisesPlaceSearchAndNoBulkIndexResource() {
+    var serverContext = Mockito.mock(OtpServerRequestContext.class);
+    when(serverContext.baseDirectory()).thenReturn(directory.toFile());
+    var resource = new McpResource(serverContext);
+
+    var toolsResponse = resource.handle(
+      Map.of("jsonrpc", "2.0", "id", 1, "method", "tools/list"),
+      null,
+      null,
+      "application/json, text/event-stream"
+    );
+    var toolsBody = (Map<?, ?>) toolsResponse.getEntity();
+    var toolsResult = (Map<?, ?>) toolsBody.get("result");
+    var tools = (List<?>) toolsResult.get("tools");
+    assertTrue(
+      tools
+        .stream()
+        .map(value -> (Map<?, ?>) value)
+        .anyMatch(tool -> "search_places".equals(tool.get("name")))
+    );
+
+    var resourcesResponse = resource.handle(
+      Map.of("jsonrpc", "2.0", "id", 2, "method", "resources/list"),
+      null,
+      null,
+      "application/json, text/event-stream"
+    );
+    var resourcesBody = (Map<?, ?>) resourcesResponse.getEntity();
+    var resourcesResult = (Map<?, ?>) resourcesBody.get("result");
+    assertEquals(List.of(), ((Map<?, ?>) resourcesResult).get("resources"));
+  }
+
+  @Test
+  void searchPlacesToolReturnsOnlyTheRequestedSuggestions() throws Exception {
+    var indexDirectory = directory.resolve(McpPlaceIndex.DIRECTORY_NAME);
+    Files.createDirectories(indexDirectory);
+    Files.writeString(
+      indexDirectory.resolve(McpPlaceIndex.FILE_NAME),
+      """
+      {
+        "version": 1,
+        "places": [
+          {"placeId":"1","stopId":"helsinki","countryCode":"FI","countryName":"Finland","population":1000,"names":["Helsinki"]},
+          {"placeId":"2","stopId":"helsingborg","countryCode":"SE","countryName":"Sweden","population":500,"names":["Helsingborg"]}
+        ],
+        "stops": []
+      }
+      """
+    );
+    var serverContext = Mockito.mock(OtpServerRequestContext.class);
+    when(serverContext.baseDirectory()).thenReturn(directory.toFile());
+    var resource = new McpResource(serverContext);
+
+    var response = resource.handle(
+      Map.of(
+        "jsonrpc",
+        "2.0",
+        "id",
+        3,
+        "method",
+        "tools/call",
+        "params",
+        Map.of("name", "search_places", "arguments", Map.of("query", "hel", "limit", 1))
+      ),
+      null,
+      null,
+      "application/json, text/event-stream"
+    );
+    var body = (Map<?, ?>) response.getEntity();
+    var result = (Map<?, ?>) body.get("result");
+    var structuredContent = (Map<?, ?>) result.get("structuredContent");
+    var places = (List<?>) structuredContent.get("places");
+    var place = (McpPlaceSuggestion) places.get(0);
+
+    assertEquals(1, places.size());
+    assertEquals("Helsinki", place.name());
+    assertEquals("1:helsinki", place.stopId());
   }
 
   @Test

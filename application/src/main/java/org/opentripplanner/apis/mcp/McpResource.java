@@ -13,7 +13,6 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
-import java.io.File;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.time.Duration;
@@ -34,14 +33,13 @@ public final class McpResource {
   private static final String JSON_RPC_VERSION = "2.0";
   private static final String ROUTE_TOOL = "route";
   private static final String NEAREST_STOP_TOOL = "find_nearest_stop";
+  private static final String SEARCH_PLACES_TOOL = "search_places";
 
   private final McpRoutingService routingService;
-  private final File baseDirectory;
   private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
 
   public McpResource(@Context OtpServerRequestContext serverContext) {
     this.routingService = new McpRoutingService(serverContext);
-    this.baseDirectory = serverContext.baseDirectory();
   }
 
   @POST
@@ -118,7 +116,11 @@ public final class McpResource {
       return jsonRpcError(id, -32602, "Tool parameters are required.");
     }
     var name = requireString(params, "name");
-    if (!name.equals(ROUTE_TOOL) && !name.equals(NEAREST_STOP_TOOL)) {
+    if (
+      !name.equals(ROUTE_TOOL) &&
+      !name.equals(NEAREST_STOP_TOOL) &&
+      !name.equals(SEARCH_PLACES_TOOL)
+    ) {
       return jsonRpcError(id, -32602, "Unknown tool: " + name);
     }
     var arguments = params.get("arguments");
@@ -133,6 +135,13 @@ public final class McpResource {
         case NEAREST_STOP_TOOL -> Map.of(
           "stops",
           routingService.findNearestStops(parseNearestStopRequest(typedArguments))
+        );
+        case SEARCH_PLACES_TOOL -> Map.of(
+          "places",
+          routingService.searchPlaces(
+            requireString(typedArguments, "query"),
+            typedArguments.containsKey("limit") ? parseInteger(typedArguments, "limit") : 8
+          )
         );
         default -> throw new IllegalStateException("Unknown tool: " + name);
       };
@@ -204,23 +213,7 @@ public final class McpResource {
   }
 
   private Map<String, Object> listResources() {
-    var resources = McpStopIndex.findResource(baseDirectory)
-      .map(path ->
-        List.of(
-          Map.<String, Object>of(
-            "uri",
-            McpStopIndex.RESOURCE_URI,
-            "name",
-            "Transit stop index",
-            "description",
-            "Compact root-stop index as [name, id, lat, lon] tuples.",
-            "mimeType",
-            MediaType.APPLICATION_JSON
-          )
-        )
-      )
-      .orElseGet(List::of);
-    return Map.of("resources", resources);
+    return Map.of("resources", List.of());
   }
 
   private Map<String, Object> readResource(Object rawParams) {
@@ -228,11 +221,7 @@ public final class McpResource {
       throw new IllegalArgumentException("Resource parameters are required.");
     }
     var uri = requireString(params, "uri");
-    var text = McpStopIndex.readResource(baseDirectory, uri);
-    return Map.of(
-      "contents",
-      List.of(Map.of("uri", uri, "mimeType", MediaType.APPLICATION_JSON, "text", text))
-    );
+    throw new IllegalArgumentException("Unknown MCP resource URI: " + uri);
   }
 
   private static List<Map<String, Object>> toolDefinitions() {
@@ -330,6 +319,35 @@ public final class McpResource {
           "required",
           List.of("stops")
         )
+      ),
+      Map.of(
+        "name",
+        SEARCH_PLACES_TOOL,
+        "description",
+        "Search GeoNames places and their alternate names. Returns a small ranked list with feed-scoped stop IDs.",
+        "inputSchema",
+        Map.of(
+          "type",
+          "object",
+          "properties",
+          Map.of(
+            "query",
+            Map.of("type", "string", "minLength", 2, "maxLength", 100),
+            "limit",
+            Map.of("type", "integer", "minimum", 1, "maximum", McpPlaceIndex.MAX_SEARCH_RESULTS)
+          ),
+          "required",
+          List.of("query")
+        ),
+        "outputSchema",
+        Map.of(
+          "type",
+          "object",
+          "properties",
+          Map.of("places", Map.of("type", "array", "items", Map.of("type", "object"))),
+          "required",
+          List.of("places")
+        )
       )
     );
   }
@@ -349,7 +367,7 @@ public final class McpResource {
           "minLength",
           1,
           "description",
-          "Feed-scoped OTP stop ID from the stops.json resource."
+          "Feed-scoped OTP stop ID from the places index."
         ),
         "name",
         Map.of(
@@ -358,7 +376,7 @@ public final class McpResource {
           "minLength",
           1,
           "description",
-          "Exact stop name from the stops.json resource."
+          "Place name or alternate name from the places index."
         ),
         "latitude",
         Map.of("type", "number", "minimum", -90, "maximum", 90),
@@ -474,7 +492,7 @@ public final class McpResource {
 
   private static McpStopLocation legacyStopLocation(String value) {
     var trimmedValue = value.trim();
-    return McpStopIndex.isStopIdReference(trimmedValue)
+    return McpPlaceIndex.isStopIdReference(trimmedValue)
       ? new McpStopLocation.StopId(trimmedValue.substring(1))
       : new McpStopLocation.Name(trimmedValue);
   }

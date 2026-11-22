@@ -12,24 +12,26 @@ feature before using the endpoint:
 ```
 
 The endpoint is `/otp/mcp` when OTP is running with its default server base path.
-The initial implementation exposes two read-only tools and a stop-index resource:
+The MCP endpoint exposes three read-only tools:
 
 - `find_nearest_stop` finds transit stops near a latitude/longitude using a bounded straight-line
   radius. This works when the graph has no street network.
 - `route` plans transit journeys between feed-scoped stop IDs, stop names, or coordinates. It accepts
   ordered intermediate stops of those same types as pass-through points.
-- `resources/list` advertises `otp://stops.json` when `stops.json` is present in OTP's base directory,
-  and `resources/read` returns the compact root-stop index.
+- `search_places` returns a bounded set of place-name suggestions with country and stop-ID context.
 
-The stop index is a JSON array of `[name, id, lat, lon]` tuples. Route stop fields accept either a
-feed-scoped stop ID prefixed with `@`, a name search, or a coordinate object containing `latitude`
-and `longitude`. Name searches are normalized to ASCII lowercase. For names with at least four
-normalized characters, OTP considers stops with the same first four characters and selects the one
-with the smallest Levenshtein distance between the remaining suffixes. Names shorter than four
-characters must match exactly after normalization. If there is no matching prefix (or no exact
-short-name match), the request returns no stop match. Coordinates resolve to the closest indexed
-stop within 10,000 meters. Explicit stop IDs can still be routed when the index resource is
-unavailable; name searches and coordinates require the resource.
+Route stop fields accept either a feed-scoped stop ID prefixed with `@`, a name search, or a
+coordinate object containing `latitude` and `longitude`. Name searches use the GeoNames places index
+at `places/index.json` in OTP's base directory, loaded and cached in memory. Each place record
+stores its metadata once and keeps primary and alternate names in a `names` array; the index also
+contains served-stop coordinates for coordinate resolution. The index contains GeoNames places,
+not stop-name autocomplete rows. Place names are normalized by removing diacritics and converting
+to lowercase. For names with at least four normalized characters, OTP considers names with the same
+first four characters and selects the one with the smallest Levenshtein distance between the
+remaining suffixes. Names shorter than four characters must match exactly after normalization.
+Coordinates resolve to the closest indexed stop within 10,000 meters. Explicit stop IDs can be
+routed without loading the places index; name searches, coordinates, and `search_places` require it.
+The old `otp://stops.json` resource is no longer advertised.
 
 The route tool requires:
 
