@@ -2,6 +2,7 @@ package org.opentripplanner.apis.mcp;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Locale;
 import org.opentripplanner.api.model.geometry.EncodedPolyline;
 import org.opentripplanner.core.model.i18n.I18NString;
 import org.opentripplanner.model.plan.Itinerary;
@@ -50,10 +51,109 @@ public final class McpRoutingResultMapper {
   }
 
   static List<McpRoutingResult.McpLeg> mapLegs(List<Leg> legs, boolean includeShapeData) {
-    return java.util.stream.IntStream.range(0, legs.size())
+    var mappedLegs = java.util.stream.IntStream.range(0, legs.size())
       .filter(index -> includeLeg(legs, index))
       .mapToObj(index -> mapLeg(legs.get(index), includeShapeData))
       .toList();
+    return java.util.stream.IntStream.range(0, mappedLegs.size())
+      .mapToObj(index -> withTransferTimeZones(mappedLegs, index))
+      .toList();
+  }
+
+  private static McpRoutingResult.McpLeg withTransferTimeZones(
+    List<McpRoutingResult.McpLeg> legs,
+    int index
+  ) {
+    var leg = legs.get(index);
+    if (!"TRANSFER".equals(leg.mode())) {
+      return leg;
+    }
+
+    var from = leg.from();
+    if (from.timeZone() == null) {
+      var previousStop = adjacentTransitPlace(legs, index, -1);
+      if (
+        previousStop != null &&
+        previousStop.timeZone() != null &&
+        samePlaceName(from.name(), previousStop.name())
+      ) {
+        from = withTimeZone(from, previousStop.timeZone());
+      }
+    }
+
+    var to = leg.to();
+    if (to.timeZone() == null) {
+      var nextStop = adjacentTransitPlace(legs, index, 1);
+      if (
+        nextStop != null && nextStop.timeZone() != null && samePlaceName(to.name(), nextStop.name())
+      ) {
+        to = withTimeZone(to, nextStop.timeZone());
+      }
+    }
+
+    if (from == leg.from() && to == leg.to()) {
+      return leg;
+    }
+    return new McpRoutingResult.McpLeg(
+      leg.transit(),
+      leg.mode(),
+      leg.departure(),
+      leg.arrival(),
+      leg.durationSeconds(),
+      leg.distanceMeters(),
+      from,
+      to,
+      leg.routeId(),
+      leg.tripId(),
+      leg.routeName(),
+      leg.agencyName(),
+      leg.shape()
+    );
+  }
+
+  private static McpRoutingResult.McpPlace adjacentTransitPlace(
+    List<McpRoutingResult.McpLeg> legs,
+    int index,
+    int direction
+  ) {
+    for (
+      int current = index + direction;
+      current >= 0 && current < legs.size();
+      current += direction
+    ) {
+      var leg = legs.get(current);
+      if (leg.transit()) {
+        return direction < 0 ? leg.to() : leg.from();
+      }
+    }
+    return null;
+  }
+
+  private static boolean samePlaceName(String first, String second) {
+    if (first == null || second == null) {
+      return false;
+    }
+
+    var normalizedFirst = normalizePlaceName(first);
+    return !normalizedFirst.isEmpty() && normalizedFirst.equals(normalizePlaceName(second));
+  }
+
+  private static String normalizePlaceName(String name) {
+    return name.strip().toLowerCase(Locale.ROOT).replaceAll("[\\p{Punct}\\s]+", " ");
+  }
+
+  private static McpRoutingResult.McpPlace withTimeZone(
+    McpRoutingResult.McpPlace place,
+    String timeZone
+  ) {
+    return new McpRoutingResult.McpPlace(
+      place.stopId(),
+      place.name(),
+      place.latitude(),
+      place.longitude(),
+      place.platformCode(),
+      timeZone
+    );
   }
 
   private static boolean includeLeg(List<Leg> legs, int index) {

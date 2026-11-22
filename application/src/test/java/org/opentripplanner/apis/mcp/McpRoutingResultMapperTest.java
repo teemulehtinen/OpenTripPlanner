@@ -125,14 +125,50 @@ class McpRoutingResultMapperTest {
     }
   }
 
+  @Test
+  void inheritsTransferEndpointTimeZonesFromMatchingTransitStops() {
+    var stop = Mockito.mock(StopLocation.class);
+    when(stop.getId()).thenReturn(new FeedScopedId("feed", "stop"));
+    when(stop.getName()).thenReturn(new NonLocalizedString("Helsinki, raide 5"));
+    when(stop.getTimeZone()).thenReturn(ZoneId.of("Europe/Helsinki"));
+    var transitPlace = Place.forStop(stop);
+    var arrivingTransit = transit(500);
+    when(arrivingTransit.to()).thenReturn(transitPlace);
+    var departingTransit = transit(600);
+    when(departingTransit.from()).thenReturn(transitPlace);
+    var transfer = walk(
+      301,
+      200,
+      new NonLocalizedString("Helsinki raide 5"),
+      new NonLocalizedString("Helsinki, raide 5")
+    );
+
+    var mapped = McpRoutingResultMapper.mapLegs(
+      List.of(arrivingTransit, transfer, departingTransit),
+      false
+    );
+
+    assertEquals("Europe/Helsinki", mapped.get(1).from().timeZone());
+    assertEquals("Europe/Helsinki", mapped.get(1).to().timeZone());
+  }
+
   private static StreetLeg walk(long durationSeconds, double distanceMeters) {
+    return walk(durationSeconds, distanceMeters, null, null);
+  }
+
+  private static StreetLeg walk(
+    long durationSeconds,
+    double distanceMeters,
+    NonLocalizedString fromName,
+    NonLocalizedString toName
+  ) {
     var start = Instant.parse("2026-09-10T08:00:00Z");
     return StreetLeg.of()
       .withMode(TraverseMode.WALK)
       .withStartTime(start.atZone(ZoneOffset.UTC))
       .withEndTime(start.plusSeconds(durationSeconds).atZone(ZoneOffset.UTC))
-      .withFrom(Place.normal(60.0, 24.0, null))
-      .withTo(Place.normal(60.0, 24.1, null))
+      .withFrom(Place.normal(60.0, 24.0, fromName))
+      .withTo(Place.normal(60.0, 24.1, toName))
       .withDistanceMeters(distanceMeters)
       .build();
   }
