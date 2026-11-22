@@ -17,6 +17,8 @@ import org.opentripplanner.model.plan.TransitLeg;
 import org.opentripplanner.model.plan.leg.StreetLeg;
 import org.opentripplanner.street.search.TraverseMode;
 import org.opentripplanner.transit.model.basic.TransitMode;
+import org.opentripplanner.transit.model.organization.Agency;
+import org.opentripplanner.transit.model.site.Station;
 import org.opentripplanner.transit.model.site.StopLocation;
 import org.opentripplanner.transit.model.timetable.Trip;
 
@@ -64,6 +66,43 @@ class McpRoutingResultMapperTest {
     assertEquals("feed:trip", mapped.tripId());
   }
 
+  @Test
+  void prefersParentStationTimezoneAndFallsBackToAgencyTimezone() {
+    var parentStation = Mockito.mock(Station.class);
+    when(parentStation.getTimezone()).thenReturn(ZoneId.of("Europe/Paris"));
+    var stop = Mockito.mock(StopLocation.class);
+    when(stop.getId()).thenReturn(new FeedScopedId("feed", "stop"));
+    when(stop.getParentStation()).thenReturn(parentStation);
+    when(stop.getTimeZone()).thenReturn(ZoneId.of("Europe/Helsinki"));
+    var place = Place.forStop(stop);
+    var agency = agency("Europe/Berlin");
+    var leg = transit(500);
+    when(leg.from()).thenReturn(place);
+    when(leg.to()).thenReturn(place);
+    when(leg.agency()).thenReturn(agency);
+
+    var mapped = McpRoutingResultMapper.mapLegs(List.of(leg), false).get(0);
+
+    assertEquals("Europe/Paris", mapped.from().timeZone());
+    assertEquals("Europe/Paris", mapped.to().timeZone());
+  }
+
+  @Test
+  void usesAgencyTimezoneWhenParentlessStopHasNoTimezone() {
+    var stop = Mockito.mock(StopLocation.class);
+    when(stop.getId()).thenReturn(new FeedScopedId("feed", "stop"));
+    var place = Place.forStop(stop);
+    var leg = transit(500);
+    when(leg.from()).thenReturn(place);
+    when(leg.to()).thenReturn(place);
+    when(leg.agency()).thenReturn(agency("Europe/Berlin"));
+
+    var mapped = McpRoutingResultMapper.mapLegs(List.of(leg), false).get(0);
+
+    assertEquals("Europe/Berlin", mapped.from().timeZone());
+    assertEquals("Europe/Berlin", mapped.to().timeZone());
+  }
+
   private static StreetLeg walk(long durationSeconds, double distanceMeters) {
     var start = Instant.parse("2026-09-10T08:00:00Z");
     return StreetLeg.of()
@@ -88,5 +127,12 @@ class McpRoutingResultMapperTest {
     when(leg.to()).thenReturn(Place.normal(60.0, 24.1, null));
     when(leg.distanceMeters()).thenReturn(distanceMeters);
     return leg;
+  }
+
+  private static Agency agency(String timeZone) {
+    return Agency.of(new FeedScopedId("feed", "agency"))
+      .withName("Agency")
+      .withTimezone(timeZone)
+      .build();
   }
 }

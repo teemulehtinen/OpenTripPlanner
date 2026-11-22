@@ -10,6 +10,7 @@ import org.opentripplanner.model.plan.TransitLeg;
 import org.opentripplanner.routing.api.response.RoutingError;
 import org.opentripplanner.routing.api.response.RoutingResponse;
 import org.opentripplanner.street.geometry.SphericalDistanceLibrary;
+import org.opentripplanner.transit.model.organization.Agency;
 
 /** Maps OTP's routing response to the bounded MCP route result. */
 public final class McpRoutingResultMapper {
@@ -80,7 +81,7 @@ public final class McpRoutingResultMapper {
       coordinate == null ? null : coordinate.latitude(),
       coordinate == null ? null : coordinate.longitude(),
       from.stop == null ? null : from.stop.getPlatformCode(),
-      timeZone(from)
+      timeZone(from, agency)
     );
     coordinate = to.coordinate;
     var toPlace = new McpRoutingResult.McpPlace(
@@ -89,7 +90,7 @@ public final class McpRoutingResultMapper {
       coordinate == null ? null : coordinate.latitude(),
       coordinate == null ? null : coordinate.longitude(),
       to.stop == null ? null : to.stop.getPlatformCode(),
-      timeZone(to)
+      timeZone(to, agency)
     );
     var geometry = leg.legGeometry();
     var shape = includeShapeData && geometry != null ? EncodedPolyline.of(geometry).points() : null;
@@ -115,8 +116,16 @@ public final class McpRoutingResultMapper {
     );
   }
 
-  private static String timeZone(Place place) {
-    var timeZone = place.stop == null ? null : place.stop.getTimeZone();
+  private static String timeZone(Place place, Agency agency) {
+    if (place.stop == null) {
+      return null;
+    }
+
+    var parentStation = place.stop.getParentStation();
+    var timeZone = parentStation == null ? place.stop.getTimeZone() : parentStation.getTimezone();
+    if (timeZone == null && agency != null) {
+      timeZone = agency.getTimezone();
+    }
     return timeZone == null ? null : timeZone.getId();
   }
 
