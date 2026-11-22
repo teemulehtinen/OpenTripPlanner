@@ -35,6 +35,7 @@ public record McpRoutingResult(
     McpPlace from,
     McpPlace to,
     String routeId,
+    String tripId,
     String routeName,
     String agencyName,
     String shape
@@ -45,7 +46,8 @@ public record McpRoutingResult(
     String name,
     Double latitude,
     Double longitude,
-    String platformCode
+    String platformCode,
+    String timeZone
   ) {}
 
   public record McpRoutingError(String code, String inputField) {}

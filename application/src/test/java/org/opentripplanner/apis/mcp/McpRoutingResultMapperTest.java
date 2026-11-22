@@ -6,15 +6,19 @@ import static org.mockito.Mockito.when;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
+import org.opentripplanner.core.model.id.FeedScopedId;
 import org.opentripplanner.model.plan.Place;
 import org.opentripplanner.model.plan.TransitLeg;
 import org.opentripplanner.model.plan.leg.StreetLeg;
 import org.opentripplanner.street.search.TraverseMode;
 import org.opentripplanner.transit.model.basic.TransitMode;
+import org.opentripplanner.transit.model.site.StopLocation;
+import org.opentripplanner.transit.model.timetable.Trip;
 
 class McpRoutingResultMapperTest {
 
@@ -38,6 +42,26 @@ class McpRoutingResultMapperTest {
     assertEquals(500, result.get(0).distanceMeters());
     assertTrue(result.get(1).distanceMeters() > 0);
     assertEquals(600, result.get(2).distanceMeters());
+  }
+
+  @Test
+  void mapsStopTimeZonesAndTransitTripIds() {
+    var stop = Mockito.mock(StopLocation.class);
+    when(stop.getId()).thenReturn(new FeedScopedId("feed", "stop"));
+    when(stop.getTimeZone()).thenReturn(ZoneId.of("Europe/Helsinki"));
+    var place = Place.forStop(stop);
+    var trip = Mockito.mock(Trip.class);
+    when(trip.getId()).thenReturn(new FeedScopedId("feed", "trip"));
+    var leg = transit(500);
+    when(leg.from()).thenReturn(place);
+    when(leg.to()).thenReturn(place);
+    when(leg.trip()).thenReturn(trip);
+
+    var mapped = McpRoutingResultMapper.mapLegs(List.of(leg), false).get(0);
+
+    assertEquals("Europe/Helsinki", mapped.from().timeZone());
+    assertEquals("Europe/Helsinki", mapped.to().timeZone());
+    assertEquals("feed:trip", mapped.tripId());
   }
 
   private static StreetLeg walk(long durationSeconds, double distanceMeters) {

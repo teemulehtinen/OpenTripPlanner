@@ -345,7 +345,14 @@ class McpResourceTest {
 
   @Test
   void routingResultSerializesMapAndDisplayFields() throws Exception {
-    var place = new McpRoutingResult.McpPlace("feed:stop", "Central", 60.17, 24.94, "5");
+    var place = new McpRoutingResult.McpPlace(
+      "feed:stop",
+      "Central",
+      60.17,
+      24.94,
+      "5",
+      "Europe/Helsinki"
+    );
     var departure = "2026-09-10T08:15:00Z";
     var arrival = "2026-09-10T09:00:00Z";
     var leg = new McpRoutingResult.McpLeg(
@@ -358,6 +365,7 @@ class McpResourceTest {
       place,
       place,
       "feed:route",
+      "feed:trip",
       "Regional train",
       "Transit Agency",
       "encoded-polyline"
@@ -379,12 +387,15 @@ class McpResourceTest {
     assertEquals("1:fi357373", nearestStopJson.path("id").asText());
     assertEquals(false, nearestStopJson.path("id").isObject());
     assertEquals("RAIL", serializedLeg.path("mode").asText());
+    assertEquals("feed:route", serializedLeg.path("routeId").asText());
+    assertEquals("feed:trip", serializedLeg.path("tripId").asText());
     assertEquals("Transit Agency", serializedLeg.path("agencyName").asText());
     assertEquals("encoded-polyline", serializedLeg.path("shape").asText());
     assertEquals(1234.5, serializedLeg.path("distanceMeters").asDouble());
     assertFalse(serializedLeg.has("geometryId"));
     assertEquals("Central", serializedLeg.path("from").path("name").asText());
     assertEquals("5", serializedLeg.path("from").path("platformCode").asText());
+    assertEquals("Europe/Helsinki", serializedLeg.path("from").path("timeZone").asText());
     assertEquals(departure, serializedLeg.path("departure").asText());
     assertEquals(arrival, serializedLeg.path("arrival").asText());
   }

@@ -5,6 +5,7 @@ import java.util.List;
 import org.opentripplanner.api.model.geometry.EncodedPolyline;
 import org.opentripplanner.model.plan.Itinerary;
 import org.opentripplanner.model.plan.Leg;
+import org.opentripplanner.model.plan.Place;
 import org.opentripplanner.model.plan.TransitLeg;
 import org.opentripplanner.routing.api.response.RoutingError;
 import org.opentripplanner.routing.api.response.RoutingResponse;
@@ -70,6 +71,7 @@ public final class McpRoutingResultMapper {
     var from = leg.from();
     var to = leg.to();
     var route = leg.route();
+    var trip = leg.trip();
     var agency = leg.agency();
     var coordinate = from.coordinate;
     var fromPlace = new McpRoutingResult.McpPlace(
@@ -77,7 +79,8 @@ public final class McpRoutingResultMapper {
       from.name == null ? null : from.name.toString(),
       coordinate == null ? null : coordinate.latitude(),
       coordinate == null ? null : coordinate.longitude(),
-      from.stop == null ? null : from.stop.getPlatformCode()
+      from.stop == null ? null : from.stop.getPlatformCode(),
+      timeZone(from)
     );
     coordinate = to.coordinate;
     var toPlace = new McpRoutingResult.McpPlace(
@@ -85,7 +88,8 @@ public final class McpRoutingResultMapper {
       to.name == null ? null : to.name.toString(),
       coordinate == null ? null : coordinate.latitude(),
       coordinate == null ? null : coordinate.longitude(),
-      to.stop == null ? null : to.stop.getPlatformCode()
+      to.stop == null ? null : to.stop.getPlatformCode(),
+      timeZone(to)
     );
     var geometry = leg.legGeometry();
     var shape = includeShapeData && geometry != null ? EncodedPolyline.of(geometry).points() : null;
@@ -104,10 +108,16 @@ public final class McpRoutingResultMapper {
       fromPlace,
       toPlace,
       route == null ? null : route.getId().toString(),
+      trip == null ? null : trip.getId().toString(),
       route == null ? null : route.getName().toString(),
       agency == null ? null : agency.getName(),
       shape
     );
+  }
+
+  private static String timeZone(Place place) {
+    var timeZone = place.stop == null ? null : place.stop.getTimeZone();
+    return timeZone == null ? null : timeZone.getId();
   }
 
   private static double distanceMeters(Leg leg) {
