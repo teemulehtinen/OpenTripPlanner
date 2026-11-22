@@ -11,6 +11,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
+import org.opentripplanner.core.model.i18n.NonLocalizedString;
 import org.opentripplanner.core.model.id.FeedScopedId;
 import org.opentripplanner.model.plan.Place;
 import org.opentripplanner.model.plan.TransitLeg;
@@ -101,6 +102,27 @@ class McpRoutingResultMapperTest {
 
     assertEquals("Europe/Berlin", mapped.from().timeZone());
     assertEquals("Europe/Berlin", mapped.to().timeZone());
+  }
+
+  @Test
+  void combinesParentAndChildStopNamesWithoutRepeatingParent() {
+    for (var childName : List.of("raide 5", "Helsinki raide 5", "Helsinki, raide 5")) {
+      var parentStation = Mockito.mock(Station.class);
+      when(parentStation.getName()).thenReturn(new NonLocalizedString("Helsinki"));
+      var stop = Mockito.mock(StopLocation.class);
+      when(stop.getId()).thenReturn(new FeedScopedId("feed", "stop"));
+      when(stop.getName()).thenReturn(new NonLocalizedString(childName));
+      when(stop.getParentStation()).thenReturn(parentStation);
+      var place = Place.forStop(stop);
+      var leg = transit(500);
+      when(leg.from()).thenReturn(place);
+      when(leg.to()).thenReturn(place);
+
+      var mapped = McpRoutingResultMapper.mapLegs(List.of(leg), false).get(0);
+
+      assertEquals("Helsinki, raide 5", mapped.from().name());
+      assertEquals("Helsinki, raide 5", mapped.to().name());
+    }
   }
 
   private static StreetLeg walk(long durationSeconds, double distanceMeters) {

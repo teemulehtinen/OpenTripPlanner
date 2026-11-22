@@ -3,6 +3,7 @@ package org.opentripplanner.apis.mcp;
 import java.time.Duration;
 import java.util.List;
 import org.opentripplanner.api.model.geometry.EncodedPolyline;
+import org.opentripplanner.core.model.i18n.I18NString;
 import org.opentripplanner.model.plan.Itinerary;
 import org.opentripplanner.model.plan.Leg;
 import org.opentripplanner.model.plan.Place;
@@ -77,7 +78,7 @@ public final class McpRoutingResultMapper {
     var coordinate = from.coordinate;
     var fromPlace = new McpRoutingResult.McpPlace(
       from.stop == null ? null : from.stop.getId().toString(),
-      from.name == null ? null : from.name.toString(),
+      placeName(from),
       coordinate == null ? null : coordinate.latitude(),
       coordinate == null ? null : coordinate.longitude(),
       from.stop == null ? null : from.stop.getPlatformCode(),
@@ -86,7 +87,7 @@ public final class McpRoutingResultMapper {
     coordinate = to.coordinate;
     var toPlace = new McpRoutingResult.McpPlace(
       to.stop == null ? null : to.stop.getId().toString(),
-      to.name == null ? null : to.name.toString(),
+      placeName(to),
       coordinate == null ? null : coordinate.latitude(),
       coordinate == null ? null : coordinate.longitude(),
       to.stop == null ? null : to.stop.getPlatformCode(),
@@ -113,6 +114,56 @@ public final class McpRoutingResultMapper {
       route == null ? null : route.getName().toString(),
       agency == null ? null : agency.getName(),
       shape
+    );
+  }
+
+  private static String placeName(Place place) {
+    var childName = place.name == null ? null : place.name.toString();
+    if (place.stop == null) {
+      return childName;
+    }
+
+    var parentStation = place.stop.getParentStation();
+    I18NString stationName = parentStation == null ? null : parentStation.getName();
+    if (stationName == null) {
+      return childName;
+    }
+
+    var parent = stationName.toString().strip();
+    var child = childName == null ? "" : childName.strip();
+    if (parent.isEmpty()) {
+      return childName;
+    }
+    if (child.isEmpty() || child.equalsIgnoreCase(parent)) {
+      return parent;
+    }
+
+    if (
+      child.regionMatches(true, 0, parent, 0, parent.length()) &&
+      child.length() > parent.length() &&
+      isNameSeparator(child.charAt(parent.length()))
+    ) {
+      child = child.substring(parent.length()).stripLeading();
+      while (!child.isEmpty() && isNameSeparator(child.charAt(0))) {
+        child = child.substring(1).stripLeading();
+      }
+      if (child.isEmpty()) {
+        return parent;
+      }
+    }
+    return parent + ", " + child;
+  }
+
+  private static boolean isNameSeparator(char character) {
+    return (
+      Character.isWhitespace(character) ||
+      character == ',' ||
+      character == ';' ||
+      character == ':' ||
+      character == '/' ||
+      character == '(' ||
+      character == ')' ||
+      character == '-'
     );
   }
 
